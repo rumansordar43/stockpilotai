@@ -33,12 +33,12 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNav, user, onLogout }) =
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-[100] px-3 md:px-6 py-4">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between glass-panel rounded-full px-4 md:px-6 py-2 border border-white/20 shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-3xl">
+      <header className="fixed top-0 left-0 right-0 z-[100] px-4 md:px-6 py-4">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between glass-panel rounded-full px-4 md:px-6 py-2 md:py-3 border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.7)] backdrop-blur-3xl bg-[#0f172a]/60">
           
           {/* Left: Brand Logo */}
           <div 
-            className="flex items-center gap-2 cursor-pointer group flex-shrink-0"
+            className="flex items-center gap-2 md:gap-3 cursor-pointer group flex-shrink-0"
             onClick={() => onNav(AppView.DASHBOARD)}
           >
             <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-blue-600 to-teal-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
@@ -46,13 +46,13 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNav, user, onLogout }) =
                 <path d="M55 15 L25 55 L45 55 L35 85 L75 45 L55 45 L65 15 Z" fill="white" />
               </svg>
             </div>
-            <span className="hidden lg:inline font-display font-bold text-lg text-white tracking-tight whitespace-nowrap">
+            <span className="hidden md:inline font-display font-bold text-lg text-white tracking-tight whitespace-nowrap">
               StockPilot<span className="text-teal-400">AI</span>
             </span>
           </div>
 
-          {/* Center: Desktop Navigation (Ensured visibility from sm/md up) */}
-          <nav className="hidden sm:flex items-center gap-1 bg-black/40 rounded-full p-1 border border-white/10 mx-2 flex-grow justify-center overflow-x-auto no-scrollbar scroll-smooth">
+          {/* Center: Desktop Navigation (Visible from MD screens) */}
+          <nav className="hidden md:flex items-center gap-1 bg-black/40 rounded-full p-1 border border-white/10 mx-4 overflow-x-auto no-scrollbar scroll-smooth">
             {navItems.map((item) => (
               <button
                 key={item.view}
@@ -68,19 +68,24 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNav, user, onLogout }) =
             ))}
           </nav>
 
-          {/* Right: User & Toggles */}
-          <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+          {/* Right: User Menu & Mobile Toggle */}
+          <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
+            {/* User Settings */}
             <button 
               onClick={() => onNav(AppView.SETTINGS)}
-              className="p-2.5 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:text-blue-400 hover:bg-white/10 transition-all"
+              className="p-2 md:p-2.5 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:text-blue-400 hover:bg-white/10 transition-all"
               title="Settings"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
             </button>
 
+            {/* Hamburger Toggle (Visible on Mobile/Tablet) */}
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="sm:hidden p-2.5 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
+              className="md:hidden p-2 md:p-2.5 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
             >
               {isMobileMenuOpen ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -89,9 +94,10 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNav, user, onLogout }) =
               )}
             </button>
 
+            {/* Logout (Visible on large screens) */}
             <button 
               onClick={onLogout}
-              className="hidden md:flex p-2.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white transition-all"
+              className="hidden lg:flex p-2.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white transition-all"
               title="Logout"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
@@ -100,9 +106,9 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNav, user, onLogout }) =
         </div>
       </header>
 
-      {/* Full-Screen Mobile Navigation Overlay */}
+      {/* Full-Screen Mobile/Tablet Navigation Overlay */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[90] sm:hidden bg-[#020617]/98 backdrop-blur-3xl animate-fade-in flex flex-col pt-24 px-6 overflow-y-auto">
+        <div className="fixed inset-0 z-[90] md:hidden bg-[#020617]/98 backdrop-blur-3xl animate-fade-in flex flex-col pt-24 px-6 overflow-y-auto">
           <div className="flex flex-col gap-2 pb-24">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mb-4 text-center">Control Center</span>
             
