@@ -183,9 +183,26 @@ export const compareNiches = async (topicA: string, topicB: string): Promise<Nic
 };
 
 export const generateMetadataFromFilename = async (filename: string, config: MetadataConfig): Promise<GeneratedMetadata | null> => {
-  const prompt = `Generate commercial microstock Title, Description, and Keywords for file: "${filename}". Return JSON: {title, description, keywords[]}.`;
+  const prompt = `Generate commercial microstock Title, Description, and Keywords for file: "${filename}". 
+  Constraints:
+  - Title: Max ${config.titleLength} characters.
+  - Description: Max ${config.descLength} characters.
+  - Keywords: Exactly ${config.keywordCount} keywords.
+  - Platform Focus: ${config.platform}
+  - Image Type: ${config.imageType}
+  ${config.negativeTitle.enabled ? `- DO NOT include these words in Title: ${config.negativeTitle.value}` : ''}
+  ${config.negativeKeywords.enabled ? `- DO NOT include these words in Keywords: ${config.negativeKeywords.value}` : ''}
+  
+  Return JSON: {title, description, keywords[]}.`;
+  
   const res = await callGroq([{ role: "user", content: prompt }]);
-  return JSON.parse(res);
+  let data = JSON.parse(res);
+  
+  // Apply manual prefix/suffix if enabled
+  if (config.prefix.enabled && config.prefix.value) data.title = `${config.prefix.value} ${data.title}`;
+  if (config.suffix.enabled && config.suffix.value) data.title = `${data.title} ${config.suffix.value}`;
+  
+  return data;
 };
 
 export const generateImageMetadata = async (base64Data: string, mimeType: string, config: MetadataConfig): Promise<GeneratedMetadata | null> => {
@@ -195,14 +212,27 @@ export const generateImageMetadata = async (base64Data: string, mimeType: string
         {
             role: "user",
             content: [
-                { type: "text", text: `Analyze this image for commercial microstock. Output exactly JSON: {"title": "max 80 chars", "description": "detailed", "keywords": ["keyword1", "keyword2", ...]}. Keywords count: ${config.keywordCount}.` },
+                { type: "text", text: `Analyze this image for commercial microstock. 
+                  Output JSON format: {"title": "max ${config.titleLength} chars", "description": "max ${config.descLength} chars", "keywords": []}. 
+                  Keywords count: ${config.keywordCount}.
+                  Platform Focus: ${config.platform}
+                  Image Type: ${config.imageType}
+                  ${config.negativeTitle.enabled ? `DO NOT use these words in Title: ${config.negativeTitle.value}` : ''}
+                  ${config.negativeKeywords.enabled ? `DO NOT use these words in Keywords: ${config.negativeKeywords.value}` : ''}` 
+                },
                 { type: "image_url", image_url: { url: cleanBase64 } }
             ]
         }
     ];
     try {
         const res = await callGroq(messages);
-        return JSON.parse(res);
+        let data = JSON.parse(res);
+        
+        // Apply manual prefix/suffix if enabled
+        if (config.prefix.enabled && config.prefix.value) data.title = `${config.prefix.value} ${data.title}`;
+        if (config.suffix.enabled && config.suffix.value) data.title = `${data.title} ${config.suffix.value}`;
+        
+        return data;
     } catch (error) {
         console.error("Vision Error:", error);
         return null;

@@ -65,9 +65,15 @@ export interface GeneratedPrompt {
 
 // BULK METADATA TYPES
 export interface MetadataConfig {
-    titleLength: 'Short' | 'Medium' | 'Long'; // Short (5-7 words), Medium (10-15), Long (20+)
-    descLength: 'Concise' | 'Detailed';
-    keywordCount: number; // 10-50
+    platform: string;
+    titleLength: number; 
+    descLength: number;
+    keywordCount: number;
+    imageType: 'None' | 'Photo' | 'Vector' | 'Illustration';
+    prefix: { enabled: boolean; value: string };
+    suffix: { enabled: boolean; value: string };
+    negativeTitle: { enabled: boolean; value: string };
+    negativeKeywords: { enabled: boolean; value: string };
 }
 
 export interface MetadataBatchItem {
@@ -77,6 +83,7 @@ export interface MetadataBatchItem {
     previewUrl?: string; // For images
     metadata?: GeneratedMetadata;
     errorMsg?: string;
+    sizeInfo?: string;
 }
 
 // SCRIPTS TYPE
