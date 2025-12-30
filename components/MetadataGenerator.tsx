@@ -90,7 +90,8 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files) return;
-      const newItems = Array.from(e.target.files).map(file => {
+      // Fixed unknown type errors by explicitly typing the map parameter as File
+      const newItems = Array.from(e.target.files).map((file: File) => {
           const id = Math.random().toString(36).substr(2, 9);
           const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
           return { id, file, status: 'pending' as const, previewUrl, sizeInfo: formatFileSize(file.size) };
