@@ -77,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNav, user, onLogout }) =
           </button>
         </div>
       </div>
-    </div>
+    </header>
   );
 };
 
