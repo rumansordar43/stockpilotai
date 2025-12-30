@@ -34,7 +34,7 @@ const callGroq = async (prompt: string, isJSON: boolean = true, model: string = 
         messages: [
           {
             role: "system",
-            content: systemMsg || (isJSON ? "You are a specialized microstock assistant. Always respond with strictly valid JSON only." : "You are a professional microstock assistant.")
+            content: systemMsg || (isJSON ? "You are a specialized microstock assistant. Always respond with strictly valid JSON only. Do not include markdown code blocks or extra text." : "You are a professional microstock assistant.")
           },
           {
             role: "user",
@@ -143,7 +143,6 @@ export const generateImageMetadata = async (base64Data: string, mimeType: string
   const apiKey = getGroqApiKey();
   if (!apiKey) throw new Error("MISSING_API_KEY");
 
-  // For vision, we must use Groq's vision model
   const model = "llama-3.2-11b-vision-preview";
   const base64 = base64Data.includes('base64,') ? base64Data.split('base64,')[1] : base64Data;
 
@@ -159,20 +158,28 @@ export const generateImageMetadata = async (base64Data: string, mimeType: string
           {
             role: "user",
             content: [
-              { type: "text", text: `Analyze this image for commercial microstock. Generate metadata for ${config.platform}. Return JSON with: title, description, keywords (count: ${config.keywordCount}).` },
+              { type: "text", text: `Analyze this image for commercial microstock suitability. Target platform: ${config.platform}. Asset type: ${config.imageType}. 
+              Return a JSON object with: 
+              - "title": a commercial title about ${config.titleLength} characters long.
+              - "description": a detailed description.
+              - "keywords": an array of ${config.keywordCount} relevant keywords.` },
               { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }
             ]
           }
         ],
         model: model,
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0.5
       })
     });
 
+    if (!response.ok) throw new Error("Vision Request Failed");
+
     const data = await response.json();
-    return JSON.parse(data.choices[0].message.content);
+    const content = data.choices[0].message.content;
+    return JSON.parse(content);
   } catch (error) {
-    console.error("Vision Error:", error);
+    console.error("Vision Service Error:", error);
     return null;
   }
 };
