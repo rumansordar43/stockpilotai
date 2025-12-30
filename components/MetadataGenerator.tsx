@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { GeneratedMetadata, MetadataConfig, MetadataBatchItem, AppView } from '../types';
 import { generateImageMetadata, generateMetadataFromFilename } from '../services/geminiService';
@@ -42,7 +41,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Improved Sequential Batch Processor
   const startBatch = async () => {
     if (isProcessing) return;
     
@@ -51,8 +49,9 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
 
     setIsProcessing(true);
 
+    // Use a true sequential loop
     for (const item of pendingItems) {
-        // Update status to processing
+        // 1. Update status to processing for this specific item
         setQueue(prev => prev.map(it => it.id === item.id ? { ...it, status: 'processing' } : it));
 
         try {
@@ -64,23 +63,26 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                     reader.onerror = () => reject(new Error("File read error"));
                     reader.readAsDataURL(item.file);
                 });
+                // Call Vision API
                 result = await generateImageMetadata(base64, item.file.type, config);
             } else {
+                // Call Filename API
                 result = await generateMetadataFromFilename(item.file.name, config);
             }
 
-            if (result) {
+            // 2. Update the queue with the result
+            if (result && result.keywords) {
                 setQueue(prev => prev.map(it => it.id === item.id ? { ...it, status: 'completed', metadata: result! } : it));
             } else {
-                setQueue(prev => prev.map(it => it.id === item.id ? { ...it, status: 'error', errorMsg: 'API failed' } : it));
+                setQueue(prev => prev.map(it => it.id === item.id ? { ...it, status: 'error', errorMsg: 'API returned no data' } : it));
             }
         } catch (err: any) {
             console.error("Batch item error:", err);
             setQueue(prev => prev.map(it => it.id === item.id ? { ...it, status: 'error', errorMsg: err.message || 'Processing failed' } : it));
         }
         
-        // Minor delay for API stability
-        await new Promise(r => setTimeout(r, 500));
+        // Add a small safety delay to prevent API flooding and ensure UI updates
+        await new Promise(r => setTimeout(r, 800));
     }
 
     setIsProcessing(false);
@@ -116,7 +118,7 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
     setQueue(prev => prev.map(item => {
         if (item.id === id && item.metadata) {
             if (field === 'keywords' && typeof value === 'string') {
-                return { ...item, metadata: { ...item.metadata, keywords: value.split(',').map(s => s.trim()) } };
+                return { ...item, metadata: { ...item.metadata, keywords: value.split(',').map(s => s.trim()).filter(s => s) } };
             }
             return { ...item, metadata: { ...item.metadata, [field]: value } };
         }
@@ -155,7 +157,7 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                   <div className="px-6 py-5 bg-slate-900/50 flex justify-between items-center border-b border-white/5">
                       <div className="flex items-center gap-2">
                           <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                          <h2 className="text-sm font-bold text-white uppercase tracking-widest">Metadata Controls</h2>
+                          <h2 className="text-sm font-bold text-white uppercase tracking-widest">Settings</h2>
                       </div>
                       <button onClick={() => setIsControlsExpanded(!isControlsExpanded)} className="lg:hidden text-xs font-bold text-blue-400 uppercase">
                           {isControlsExpanded ? 'Hide' : 'Show'}
@@ -196,13 +198,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                                   <input type="range" disabled={isProcessing} min="10" max="50" step="1" value={config.keywordCount} onChange={(e) => setConfig({...config, keywordCount: parseInt(e.target.value)})} className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" />
                               </div>
                           </div>
-
-                          <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Image Type</label>
-                              <select disabled={isProcessing} value={config.imageType} onChange={(e) => setConfig({...config, imageType: e.target.value as any})} className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
-                                  <option value="None">None</option><option value="Photo">Photo</option><option value="Vector">Vector</option><option value="Illustration">Illustration</option>
-                              </select>
-                          </div>
                       </div>
                   )}
               </div>
@@ -211,24 +206,23 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
           {/* MAIN AREA */}
           <div className="space-y-8">
               <div onClick={() => !isProcessing && fileInputRef.current?.click()} className={`glass-panel border-2 border-dashed border-white/10 hover:border-blue-500/50 transition-all rounded-3xl py-12 flex flex-col items-center justify-center cursor-pointer bg-slate-900/20 group ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                  <input type="file" multiple ref={fileInputRef} onChange={handleFiles} className="hidden" accept="image/*,video/*,.eps,.svg,.ai" disabled={isProcessing} />
+                  <input type="file" multiple ref={fileInputRef} onChange={handleFiles} className="hidden" accept="image/*" disabled={isProcessing} />
                   <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-1">Click to Upload Files</h3>
-                  <p className="text-slate-500 text-sm">Upload images or videos to generate bulk metadata.</p>
+                  <h3 className="text-xl font-bold text-white mb-1">Upload Images</h3>
+                  <p className="text-slate-500 text-sm">Select files to generate metadata using Llama 3.2 Vision.</p>
               </div>
 
               {queue.length > 0 && (
                   <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/30 p-4 rounded-3xl border border-white/5">
                       <div className="text-[10px] font-bold text-blue-400 tracking-widest uppercase pl-2">
-                          {queue.length} files in queue | {completedCount} completed
+                          Files: {queue.length} | Done: {completedCount}
                       </div>
                       <div className="flex gap-3">
-                          <button onClick={clearQueue} disabled={isProcessing} className="px-4 py-2 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 rounded-xl font-bold text-xs transition-all disabled:opacity-30">Clear All</button>
+                          <button onClick={clearQueue} disabled={isProcessing} className="px-4 py-2 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 rounded-xl font-bold text-xs transition-all disabled:opacity-30">Clear</button>
                           <button onClick={startBatch} disabled={isProcessing || !queue.some(i => i.status === 'pending')} className="px-6 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white rounded-xl font-bold text-xs shadow-xl disabled:opacity-50 flex items-center gap-2">
-                            {isProcessing ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : null}
-                            Generate Metadata
+                            {isProcessing ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Start Analysis'}
                           </button>
                           <button onClick={downloadCSV} disabled={completedCount === 0} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs border border-white/10 disabled:opacity-20">Download CSV</button>
                       </div>
@@ -239,35 +233,35 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                   {queue.map((item) => (
                       <div key={item.id} className="glass-panel rounded-3xl p-6 border border-white/5 flex flex-col lg:flex-row gap-8 relative group animate-fade-in-up">
                           <div className="lg:w-1/4 flex flex-col gap-4">
-                              <div className="relative aspect-square bg-slate-900/50 rounded-2xl overflow-hidden border border-white/10 group-hover:border-blue-500/30 transition-all shadow-2xl">
-                                  {item.previewUrl ? <img src={item.previewUrl} alt="Preview" className="w-full h-full object-cover" /> : <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 font-black text-4xl uppercase">{item.file.name.split('.').pop()}</div>}
+                              <div className="relative aspect-square bg-slate-900/50 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                                  {item.previewUrl ? <img src={item.previewUrl} alt="Preview" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-700 font-black">IMAGE</div>}
                                   {!isProcessing && (
-                                    <button onClick={() => removeFile(item.id)} className="absolute top-3 right-3 p-2 bg-red-600/80 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                    <button onClick={() => removeFile(item.id)} className="absolute top-3 right-3 p-2 bg-red-600/80 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-lg"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                                   )}
-                                  {item.status === 'processing' && <div className="absolute inset-0 bg-blue-600/40 backdrop-blur-sm flex items-center justify-center"><div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div></div>}
+                                  {item.status === 'processing' && <div className="absolute inset-0 bg-blue-600/40 backdrop-blur-md flex items-center justify-center"><div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div></div>}
                               </div>
-                              <div>
-                                  <p className="text-[11px] font-bold text-blue-400 truncate mb-1">{item.file.name}</p>
-                                  <p className="text-[9px] text-slate-600 uppercase font-black tracking-widest">{item.sizeInfo}</p>
+                              <div className="px-1">
+                                  <p className="text-[10px] font-bold text-blue-400 truncate">{item.file.name}</p>
+                                  <p className="text-[9px] text-slate-600 uppercase font-black">{item.sizeInfo}</p>
                               </div>
                           </div>
 
-                          <div className="lg:w-3/4 flex flex-col gap-5">
+                          <div className="lg:w-3/4 flex flex-col gap-4">
                               {showTitle && (
                                   <div>
-                                      <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2"><span className="text-blue-400">T</span> Title</label>
-                                      <textarea placeholder="Waiting for generation..." value={item.metadata?.title || ''} onChange={(e) => updateMetadataField(item.id, 'title', e.target.value)} className="w-full bg-slate-900/80 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 min-h-[60px] custom-scrollbar" />
+                                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">Title</label>
+                                      <textarea placeholder="Metadata will appear here..." value={item.metadata?.title || ''} onChange={(e) => updateMetadataField(item.id, 'title', e.target.value)} className="w-full bg-slate-900/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 min-h-[60px] custom-scrollbar" />
                                   </div>
                               )}
                               {showDesc && (
                                   <div>
-                                      <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">📄 Description</label>
-                                      <textarea placeholder="Waiting for generation..." value={item.metadata?.description || ''} onChange={(e) => updateMetadataField(item.id, 'description', e.target.value)} className="w-full bg-slate-900/80 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 min-h-[80px] custom-scrollbar" />
+                                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">Description</label>
+                                      <textarea placeholder="Metadata will appear here..." value={item.metadata?.description || ''} onChange={(e) => updateMetadataField(item.id, 'description', e.target.value)} className="w-full bg-slate-900/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 min-h-[80px] custom-scrollbar" />
                                   </div>
                               )}
                               <div>
-                                  <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">🏷️ Keywords ({item.metadata?.keywords.length || 0})</label>
-                                  <textarea placeholder="Waiting for generation..." value={item.metadata?.keywords.join(', ') || ''} onChange={(e) => updateMetadataField(item.id, 'keywords', e.target.value)} className="w-full bg-slate-900/80 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 min-h-[100px] custom-scrollbar" />
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">Keywords ({item.metadata?.keywords.length || 0})</label>
+                                  <textarea placeholder="Metadata will appear here..." value={item.metadata?.keywords.join(', ') || ''} onChange={(e) => updateMetadataField(item.id, 'keywords', e.target.value)} className="w-full bg-slate-900/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 min-h-[100px] custom-scrollbar" />
                               </div>
 
                               <div className="flex justify-between items-center mt-auto pt-4 border-t border-white/5">

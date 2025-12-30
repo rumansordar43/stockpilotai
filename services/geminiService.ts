@@ -1,4 +1,3 @@
-
 import { Trend, DeepAnalysisResult, GeneratedMetadata, NicheComparisonResult, MetadataConfig } from "../types";
 
 // Helper to get Groq Key from local storage
@@ -34,7 +33,7 @@ const callGroq = async (prompt: string, isJSON: boolean = true, model: string = 
         messages: [
           {
             role: "system",
-            content: systemMsg || (isJSON ? "You are a specialized microstock assistant. Always respond with strictly valid JSON only. Do not include markdown code blocks or extra text." : "You are a professional microstock assistant.")
+            content: systemMsg || (isJSON ? "You are a professional microstock metadata expert. Always respond with strictly valid JSON only. No extra text or markdown." : "You are a professional microstock assistant.")
           },
           {
             role: "user",
@@ -43,14 +42,16 @@ const callGroq = async (prompt: string, isJSON: boolean = true, model: string = 
         ],
         model: model,
         temperature: 0.7,
-        max_tokens: 2048,
+        max_tokens: 1024,
+        top_p: 1,
+        stream: false,
         response_format: isJSON ? { type: "json_object" } : undefined
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error?.message || "Groq API Request Failed");
+      throw new Error(errorData.error?.message || "Groq API Error");
     }
 
     const data = await response.json();
@@ -58,32 +59,26 @@ const callGroq = async (prompt: string, isJSON: boolean = true, model: string = 
     
     return isJSON ? JSON.parse(content) : content;
   } catch (error: any) {
-    console.error("Groq Service Error:", error);
-    notifyError(`Service Error: ${error.message}`);
+    console.error("Groq Error:", error);
+    notifyError(`AI Error: ${error.message}`);
     throw error;
   }
 };
 
-// --- API Implementation Functions ---
-
 export const fetchDailyTrends = async (): Promise<Trend[]> => {
-  const prompt = "Identify 9 diverse and profitable microstock niches for today. Provide them as an array of objects matching this schema: { trends: [{ id, topic, niche, competition: 'Low'|'Medium'|'High', category, description, potentialEarnings, popularityScore, trendHistory: [7 numbers] }] }";
+  const prompt = "Identify 9 profitable microstock niches. Schema: { trends: [{ id, topic, niche, competition, category, description, potentialEarnings, popularityScore, trendHistory: [7 numbers] }] }";
   try {
     const data = await callGroq(prompt);
     return data.trends || [];
-  } catch (error) {
-    return [];
-  }
+  } catch { return []; }
 };
 
 export const fetchMonthlyTrends = async (): Promise<Trend[]> => {
-  const prompt = "Identify 6 major upcoming seasonal microstock trends for the next 2 months. Schema: { trends: [...] }";
+  const prompt = "Identify 6 seasonal microstock trends. Schema: { trends: [...] }";
   try {
     const data = await callGroq(prompt);
     return data.trends || [];
-  } catch (error) {
-    return [];
-  }
+  } catch { return []; }
 };
 
 export const fetchTShirtTrends = async (): Promise<Trend[]> => {
@@ -91,54 +86,45 @@ export const fetchTShirtTrends = async (): Promise<Trend[]> => {
   try {
     const data = await callGroq(prompt);
     return data.trends || [];
-  } catch (error) {
-    return [];
-  }
+  } catch { return []; }
 };
 
 export const fetchPngTrends = async (): Promise<Trend[]> => {
-  const prompt = "Identify 9 isolated PNG asset niches currently in high demand. Schema: { trends: [...] }";
+  const prompt = "Identify 9 demand isolated PNG asset niches. Schema: { trends: [...] }";
   try {
     const data = await callGroq(prompt);
     return data.trends || [];
-  } catch (error) {
-    return [];
-  }
+  } catch { return []; }
 };
 
 export const regenerateTrend = async (currentTrend: Trend): Promise<Trend | null> => {
-  const prompt = `Generate one unique microstock niche idea similar to "${currentTrend.topic}" but for category "${currentTrend.category}". Schema: { trend: { ... } }`;
+  const prompt = `Generate one niche similar to "${currentTrend.topic}". Schema: { trend: { ... } }`;
   try {
     const data = await callGroq(prompt);
     return data.trend || null;
-  } catch (error) {
-    return null;
-  }
+  } catch { return null; }
 };
 
 export const deepAnalyzeTopic = async (topic: string): Promise<DeepAnalysisResult | null> => {
-  const prompt = `Perform deep market analysis for microstock topic: "${topic}". Provide nichePath, searchVolume, difficulty, visualStyle, composition, suggestedPrompt, relatedKeywords, and lowCompetitionAlternatives (array). Schema: { analysis: { ... } }`;
+  const prompt = `Analyze market for: "${topic}". Schema: { analysis: { nichePath, searchVolume, difficulty, visualStyle, composition, suggestedPrompt, relatedKeywords, lowCompetitionAlternatives: [] } }`;
   try {
     const data = await callGroq(prompt);
-    const result = data.analysis || data;
-    result.originalQuery = topic;
-    return result as DeepAnalysisResult;
-  } catch (error) {
-    return null;
-  }
+    const res = data.analysis || data;
+    res.originalQuery = topic;
+    return res;
+  } catch { return null; }
 };
 
 export const compareNiches = async (topicA: string, topicB: string): Promise<NicheComparisonResult> => {
-  const prompt = `Compare these two microstock niches: "${topicA}" vs "${topicB}". Determine winner, reason, and provide pros/cons for both. Schema: { winner, winnerReason, topicA: {name, score, pros, cons}, topicB: {name, score, pros, cons} }`;
+  const prompt = `Compare "${topicA}" and "${topicB}". Schema: { winner, winnerReason, topicA: {name, score, pros, cons}, topicB: {name, score, pros, cons} }`;
   return await callGroq(prompt);
 };
 
 export const generateMetadataFromFilename = async (filename: string, config: MetadataConfig): Promise<GeneratedMetadata | null> => {
-  const prompt = `Generate commercial microstock metadata (title, keywords) for file: "${filename}". Platform: ${config.platform}. Keyword count: ${config.keywordCount}. Schema: { title, description, keywords: [] }`;
+  const prompt = `Generate title/keywords for file: "${filename}". Platform: ${config.platform}. Count: ${config.keywordCount}. Schema: { title, description, keywords: [] }`;
   return await callGroq(prompt);
 };
 
-// Vision: Groq uses specialized models for vision
 export const generateImageMetadata = async (base64Data: string, mimeType: string, config: MetadataConfig): Promise<GeneratedMetadata | null> => {
   const apiKey = getGroqApiKey();
   if (!apiKey) throw new Error("MISSING_API_KEY");
@@ -158,46 +144,39 @@ export const generateImageMetadata = async (base64Data: string, mimeType: string
           {
             role: "user",
             content: [
-              { type: "text", text: `Analyze this image for commercial microstock suitability. Target platform: ${config.platform}. Asset type: ${config.imageType}. 
-              Return a JSON object with: 
-              - "title": a commercial title about ${config.titleLength} characters long.
-              - "description": a detailed description.
-              - "keywords": an array of ${config.keywordCount} relevant keywords.` },
+              { type: "text", text: `Analyze this image for commercial microstock (${config.platform}). Return JSON: { "title": "...", "description": "...", "keywords": ["...", "..."] }. Keywords count: ${config.keywordCount}.` },
               { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }
             ]
           }
         ],
         model: model,
-        response_format: { type: "json_object" },
-        temperature: 0.5
+        response_format: { type: "json_object" }
       })
     });
 
-    if (!response.ok) throw new Error("Vision Request Failed");
-
+    if (!response.ok) throw new Error("Vision Analysis Failed");
     const data = await response.json();
-    const content = data.choices[0].message.content;
-    return JSON.parse(content);
+    return JSON.parse(data.choices[0].message.content);
   } catch (error) {
-    console.error("Vision Service Error:", error);
+    console.error("Vision Error:", error);
     return null;
   }
 };
 
 export const generateSinglePrompt = async (topic: string, style: string, composition: string): Promise<string> => {
-  const prompt = `Generate one professional AI image prompt for: "${topic}". Style: ${style}. Composition: ${composition}. Schema: { prompt: "text" }`;
+  const prompt = `Generate one AI prompt for: "${topic}". Style: ${style}. Composition: ${composition}. Schema: { prompt: "text" }`;
   const data = await callGroq(prompt);
   return data.prompt || "";
 };
 
 export const generateBulkPrompts = async (topic: string, count: number, style: string, composition: string): Promise<string[]> => {
-  const prompt = `Generate ${count} unique, high-quality AI image prompts for: "${topic}". Style: ${style}. Composition: ${composition}. Schema: { prompts: ["prompt1", "prompt2", ...] }`;
+  const prompt = `Generate ${count} AI prompts for: "${topic}". Style: ${style}. Composition: ${composition}. Schema: { prompts: [] }`;
   const data = await callGroq(prompt);
   return data.prompts || [];
 };
 
 export const fetchNichesByCategory = async (category: string): Promise<Trend[]> => {
-  const prompt = `Identify 9 trending niches for microstock category: "${category}". Schema: { trends: [...] }`;
+  const prompt = `9 niches for: "${category}". Schema: { trends: [] }`;
   const data = await callGroq(prompt);
   return data.trends || [];
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -61,6 +60,7 @@ const App: React.FC = () => {
 
     setGlobalErrorListener((msg) => {
       setToastMessage(msg);
+      // Remove toast after delay unless it's a critical quota issue
       if (!msg.toLowerCase().includes('limit') && !msg.toLowerCase().includes('quota')) {
         setTimeout(() => setToastMessage(null), 5000);
       }
@@ -138,13 +138,6 @@ const App: React.FC = () => {
       }
   };
 
-  const toggleTheme = () => {
-      const newTheme = theme === 'light' ? 'dark' : 'light';
-      setTheme(newTheme);
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-  };
-
   const handleNav = async (view: AppView) => {
     setCurrentView(view);
     setSelectedTrend(null);
@@ -202,25 +195,26 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen text-text-main font-sans selection:bg-blue-500 selection:text-white pb-0 flex flex-col perspective-container transition-colors duration-500">
       
-      {isAuthenticated && (
-        <Header 
-          currentView={currentView} 
-          onNav={handleNav} 
-          user={currentUser} 
-          onLogout={handleLogout} 
-        />
-      )}
+      <Header 
+        currentView={currentView} 
+        onNav={handleNav} 
+        user={currentUser} 
+        onLogout={handleLogout} 
+      />
 
       {toastMessage && (
         <div className="fixed top-24 right-6 z-[100] animate-fade-in-up">
-           <div className={`glass-panel p-4 rounded-xl border ${toastMessage.includes('limit') || toastMessage.includes('reached') ? 'border-red-500/50 bg-red-900/90' : 'border-red-500/50 bg-surface/90'} shadow-[0_0_30px_rgba(239,68,68,0.4)] flex items-center gap-3 max-w-sm backdrop-blur-xl`}>
-               <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center border border-red-500/30 flex-shrink-0">
+           <div className={`glass-panel p-4 rounded-xl border border-red-500/50 bg-slate-900/95 shadow-2xl flex items-center gap-3 max-w-sm backdrop-blur-xl`}>
+               <div className="w-10 h-10 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/30 flex-shrink-0">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                </div>
-               <div>
-                  <h4 className="text-text-main font-bold text-sm">System Notice</h4>
-                  <p className="text-text-muted text-xs leading-tight">{toastMessage}</p>
+               <div className="overflow-hidden">
+                  <h4 className="text-white font-bold text-sm">System Notice</h4>
+                  <p className="text-slate-400 text-xs leading-tight truncate">{toastMessage}</p>
                </div>
+               <button onClick={() => setToastMessage(null)} className="ml-2 text-slate-500 hover:text-white">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+               </button>
             </div>
         </div>
       )}
