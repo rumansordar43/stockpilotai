@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { generateSinglePrompt } from '../services/geminiService';
 import { AppView } from '../types';
 
@@ -23,7 +23,7 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({ initialTopic = '', on
 
   /**
    * SEQUENTIAL GENERATION LOGIC
-   * We request one prompt at a time from the API.
+   * We request one prompt at a time from the API as per user request.
    */
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,14 +38,20 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({ initialTopic = '', on
 
     try {
         for (let i = 0; i < num; i++) {
-            const p = await generateSinglePrompt(topic, style, composition);
-            if (p) {
-                tempPrompts.push(p);
-                setPrompts([...tempPrompts]); // Update UI immediately
-                setProgress(Math.round(((i + 1) / num) * 100));
+            try {
+                const p = await generateSinglePrompt(topic, style, composition);
+                if (p) {
+                    tempPrompts.push(p);
+                    // Update state inside loop to show immediate results
+                    setPrompts(prev => [...prev, p]); 
+                    setProgress(Math.round(((i + 1) / num) * 100));
+                }
+                // Small delay between requests to prevent API congestion
+                await new Promise(r => setTimeout(r, 200));
+            } catch (innerErr: any) {
+                console.error("Single generation error:", innerErr);
+                if (innerErr.message === 'MISSING_API_KEY') throw innerErr;
             }
-            // Small pause between requests to prevent API congestion
-            await new Promise(r => setTimeout(r, 150));
         }
     } catch (error: any) {
          if (error.message === 'MISSING_API_KEY') {
@@ -76,7 +82,7 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({ initialTopic = '', on
     <div className="max-w-5xl mx-auto w-full pb-20">
       <div className="glass-panel p-8 rounded-3xl mb-8">
         <h2 className="text-3xl font-display font-bold text-white mb-2">Manual Prompt Builder</h2>
-        <p className="text-slate-400 mb-8">Create specific prompts for any concept with custom styles using Llama 4 Scout.</p>
+        <p className="text-slate-400 mb-8">Create specific prompts for any concept using Groq Llama 4 Scout.</p>
 
         <form onSubmit={handleGenerate} className="space-y-6">
           <div className="flex flex-col gap-6">
@@ -144,7 +150,7 @@ const PromptGenerator: React.FC<PromptGeneratorProps> = ({ initialTopic = '', on
                 disabled={loading}
                 className="w-full md:w-auto flex-grow bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-8 py-4 rounded-xl font-semibold transition-all shadow-lg shadow-blue-900/20 whitespace-nowrap"
                 >
-                {loading ? `Generating ${prompts.length}/${count}...` : 'Generate Prompts'}
+                {loading ? `Processing ${prompts.length}/${count}...` : 'Generate Prompts'}
                 </button>
             </div>
           </div>

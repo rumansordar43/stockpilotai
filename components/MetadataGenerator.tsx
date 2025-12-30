@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { GeneratedMetadata, MetadataConfig, MetadataBatchItem, AppView } from '../types';
 import { generateImageMetadata, generateMetadataFromFilename, setGlobalErrorListener } from '../services/geminiService';
@@ -14,24 +15,29 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
   });
 
   const [queue, setQueue] = useState<MetadataBatchItem[]>([]);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Clean up object URLs to avoid memory leaks
+  useEffect(() => {
+    return () => {
+        Object.values(previews).forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [previews]);
+
   // --- QUEUE PROCESSOR ---
-  // Processes one item at a time to prevent browser freeze & rate limits
   useEffect(() => {
     const processQueue = async () => {
         if (!isProcessing) return;
 
-        // Find next pending item
         const nextIdx = queue.findIndex(item => item.status === 'pending');
         
         if (nextIdx === -1) {
-            setIsProcessing(false); // All done
+            setIsProcessing(false);
             return;
         }
 
-        // Mark as processing
         setQueue(prev => prev.map((item, i) => i === nextIdx ? { ...item, status: 'processing' } : item));
 
         const item = queue[nextIdx];
@@ -39,10 +45,7 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
         let errorMsg = 'AI Failed';
 
         try {
-            // Determine handling based on file type
             if (item.file.type.startsWith('image/')) {
-                // VISUAL ANALYSIS
-                // Read file to base64
                 const base64 = await new Promise<string>((resolve) => {
                     const reader = new FileReader();
                     reader.onloadend = () => resolve(reader.result as string);
@@ -50,7 +53,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                 });
                 result = await generateImageMetadata(base64, item.file.type, config);
             } else {
-                // FILENAME ANALYSIS (For EPS, AI, PSD, etc.)
                 result = await generateMetadataFromFilename(item.file.name, config);
             }
 
@@ -61,33 +63,35 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
             }
 
         } catch (err: any) {
-            // Check for Missing Key
-            if (err.message === 'MISSING_API_KEY') {
-                setIsProcessing(false);
-                setGlobalErrorListener(() => {}); // Prevent generic error
-                if (onNav) onNav(AppView.SETTINGS);
-                return; // Stop queue
-            }
             setQueue(prev => prev.map((it, i) => i === nextIdx ? { ...it, status: 'error', errorMsg: 'Error' } : it));
         }
 
-        // Wait a tiny bit before next to avoid total UI lockup
         setTimeout(processQueue, 100); 
     };
 
     if (isProcessing) {
         processQueue();
     }
-  }, [isProcessing, queue, config]); // Re-run when queue state updates or processing is toggled
+  }, [isProcessing, queue, config]);
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files) return;
       
-      const newFiles = Array.from(e.target.files).map(file => ({
-          id: Math.random().toString(36).substr(2, 9),
-          file: file,
-          status: 'pending' as const
-      }));
+      const newFiles = Array.from(e.target.files).map(file => {
+          const id = Math.random().toString(36).substr(2, 9);
+          
+          // Generate preview for images
+          if (file.type.startsWith('image/')) {
+              const url = URL.createObjectURL(file);
+              setPreviews(prev => ({ ...prev, [id]: url }));
+          }
+
+          return {
+              id,
+              file: file,
+              status: 'pending' as const
+          };
+      });
 
       setQueue(prev => [...prev, ...newFiles]);
   };
@@ -100,10 +104,11 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
 
   const clearQueue = () => {
       if (isProcessing) return;
+      Object.values(previews).forEach(url => URL.revokeObjectURL(url));
+      setPreviews({});
       setQueue([]);
   };
 
-  // EXPORT TO CSV
   const downloadCSV = () => {
       const completed = queue.filter(q => q.status === 'completed' && q.metadata);
       if (completed.length === 0) return;
@@ -113,7 +118,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
 
       completed.forEach(item => {
           const m = item.metadata!;
-          // Escape quotes for CSV
           const title = `"${m.title.replace(/"/g, '""')}"`;
           const desc = `"${m.description.replace(/"/g, '""')}"`;
           const keywords = `"${m.keywords.join(', ')}"`;
@@ -137,7 +141,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
     <div className="max-w-[1400px] mx-auto w-full px-6 pb-20 animate-fade-in-up">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
-          {/* 1. SIDEBAR CONFIGURATION */}
           <div className="lg:col-span-1 space-y-6">
               <div className="glass-panel p-6 rounded-3xl sticky top-24">
                   <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -145,7 +148,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                   </h2>
 
                   <div className="space-y-6">
-                      {/* Title Length */}
                       <div>
                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Title Length</label>
                           <div className="grid grid-cols-3 gap-2">
@@ -161,7 +163,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                           </div>
                       </div>
 
-                      {/* Description Length */}
                       <div>
                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Description Detail</label>
                           <div className="grid grid-cols-2 gap-2">
@@ -177,7 +178,6 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                           </div>
                       </div>
 
-                      {/* Keyword Count */}
                       <div>
                           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Keywords: {config.keywordCount}</label>
                           <input 
@@ -189,19 +189,14 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                             onChange={(e) => setConfig({...config, keywordCount: parseInt(e.target.value)})}
                             className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                           />
-                          <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                              <span>10</span>
-                              <span>50</span>
-                          </div>
                       </div>
 
                       <div className="pt-6 border-t border-white/5">
                           <button 
                              onClick={downloadCSV}
                              disabled={completedCount === 0}
-                             className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20"
+                             className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20"
                           >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                               Export CSV
                           </button>
                       </div>
@@ -209,13 +204,12 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
               </div>
           </div>
 
-          {/* 2. MAIN BATCH PROCESSOR */}
           <div className="lg:col-span-3 space-y-6">
               <div className="glass-panel p-8 rounded-3xl min-h-[600px] flex flex-col">
                   <div className="flex justify-between items-center mb-6">
                       <div>
                         <h1 className="text-3xl font-display font-bold text-white">Bulk Metadata Engine</h1>
-                        <p className="text-slate-400 text-sm mt-1">Supports JPG, PNG, EPS, AI, PSD. Processes filenames for non-images.</p>
+                        <p className="text-slate-400 text-sm mt-1">Unified API Key powered analysis with image previews.</p>
                       </div>
                       <div className="flex gap-3">
                           {queue.length > 0 && (
@@ -232,21 +226,13 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                                     disabled={isProcessing || !queue.some(q => q.status === 'pending')}
                                     className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-blue-900/20 flex items-center gap-2"
                                 >
-                                    {isProcessing ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                            Processing...
-                                        </>
-                                    ) : (
-                                        <>Start Batch ({queue.filter(q => q.status === 'pending').length})</>
-                                    )}
+                                    {isProcessing ? 'Processing...' : `Start Batch (${queue.filter(q => q.status === 'pending').length})`}
                                 </button>
                               </>
                           )}
                       </div>
                   </div>
 
-                  {/* DROP ZONE */}
                   <div 
                     onClick={() => fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all mb-8 ${queue.length === 0 ? 'bg-slate-900/30 border-white/20 hover:border-blue-500 py-20' : 'bg-slate-900/10 border-white/10 hover:border-white/30 py-6'}`}
@@ -264,13 +250,12 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                           </div>
                           <div className="text-left">
-                              <h3 className="text-white font-bold">Add Files (JPG, PNG, EPS, AI)</h3>
-                              <p className="text-slate-500 text-xs">Drag & drop or click to upload</p>
+                              <h3 className="text-white font-bold">Add Files</h3>
+                              <p className="text-slate-500 text-xs">Images will show visual previews</p>
                           </div>
                       </div>
                   </div>
 
-                  {/* PROGRESS BAR */}
                   {queue.length > 0 && (
                       <div className="mb-6">
                           <div className="flex justify-between text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
@@ -283,14 +268,12 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                       </div>
                   )}
 
-                  {/* QUEUE LIST (Virtual scroll style for performance) */}
                   <div className="flex-grow bg-slate-900/50 rounded-2xl border border-white/5 overflow-hidden flex flex-col">
                       <div className="grid grid-cols-12 gap-4 p-4 border-b border-white/10 bg-slate-900 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                          <div className="col-span-1">#</div>
+                          <div className="col-span-1">Preview</div>
                           <div className="col-span-5">Filename</div>
-                          <div className="col-span-2">Type</div>
                           <div className="col-span-2">Status</div>
-                          <div className="col-span-2 text-right">Action</div>
+                          <div className="col-span-4 text-right">Action</div>
                       </div>
                       
                       <div className="overflow-y-auto custom-scrollbar max-h-[500px]">
@@ -301,27 +284,38 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                           ) : (
                               queue.map((item, idx) => (
                                   <div key={item.id} className="grid grid-cols-12 gap-4 p-4 border-b border-white/5 hover:bg-white/5 transition-colors items-center text-sm">
-                                      <div className="col-span-1 text-slate-500 font-mono text-xs">{idx + 1}</div>
-                                      <div className="col-span-5 text-slate-200 truncate font-medium" title={item.file.name}>{item.file.name}</div>
-                                      <div className="col-span-2">
-                                          <span className="bg-white/10 px-2 py-0.5 rounded text-[10px] text-slate-300 uppercase">
-                                              {item.file.name.split('.').pop()}
-                                          </span>
+                                      <div className="col-span-1">
+                                          {previews[item.id] ? (
+                                              <img src={previews[item.id]} alt="Preview" className="w-10 h-10 object-cover rounded-lg border border-white/10" />
+                                          ) : (
+                                              <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center text-[10px] text-slate-500 uppercase font-bold">
+                                                  {item.file.name.split('.').pop()}
+                                              </div>
+                                          )}
                                       </div>
+                                      <div className="col-span-5 text-slate-200 truncate font-medium" title={item.file.name}>{item.file.name}</div>
                                       <div className="col-span-2">
                                           {item.status === 'pending' && <span className="text-slate-500 text-xs">Waiting...</span>}
                                           {item.status === 'processing' && <span className="text-blue-400 text-xs font-bold animate-pulse">Analyzing...</span>}
-                                          {item.status === 'completed' && <span className="text-green-400 text-xs font-bold flex items-center gap-1"><span className="text-lg">✓</span> Done</span>}
+                                          {item.status === 'completed' && <span className="text-green-400 text-xs font-bold">Done</span>}
                                           {item.status === 'error' && <span className="text-red-400 text-xs font-bold">Failed</span>}
                                       </div>
-                                      <div className="col-span-2 text-right">
+                                      <div className="col-span-4 text-right space-x-2">
                                           {item.status === 'completed' && item.metadata && (
-                                              <button 
-                                                onClick={() => navigator.clipboard.writeText(item.metadata!.keywords.join(', '))}
-                                                className="text-[10px] font-bold text-blue-400 hover:text-white border border-blue-500/30 px-2 py-1 rounded hover:bg-blue-600/20"
-                                              >
-                                                  Copy Tags
-                                              </button>
+                                              <>
+                                                <button 
+                                                  onClick={() => navigator.clipboard.writeText(item.metadata!.title)}
+                                                  className="text-[10px] font-bold text-blue-400 hover:text-white border border-blue-500/30 px-2 py-1 rounded hover:bg-blue-600/20"
+                                                >
+                                                    Title
+                                                </button>
+                                                <button 
+                                                  onClick={() => navigator.clipboard.writeText(item.metadata!.keywords.join(', '))}
+                                                  className="text-[10px] font-bold text-teal-400 hover:text-white border border-teal-500/30 px-2 py-1 rounded hover:bg-teal-600/20"
+                                                >
+                                                    Tags
+                                                </button>
+                                              </>
                                           )}
                                       </div>
                                   </div>

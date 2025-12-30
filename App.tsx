@@ -20,7 +20,7 @@ import Settings from './components/Settings';
 import AuthPage from './components/AuthPage';
 import { PrivacyPolicy, TermsOfService } from './components/LegalPages';
 import { AppView, Trend, User } from './types';
-import { fetchDailyTrends, fetchMonthlyTrends, fetchTShirtTrends, setGlobalErrorListener, setDynamicApiKey } from './services/geminiService';
+import { fetchDailyTrends, fetchMonthlyTrends, fetchTShirtTrends, regenerateTrend, setGlobalErrorListener, setDynamicApiKey } from './services/geminiService';
 
 const ADMIN_EMAIL = 'rumansordar43@gmail.com';
 
@@ -106,23 +106,16 @@ const App: React.FC = () => {
       }
   };
 
-  /**
-   * SEQUENTIAL LOADING LOGIC
-   * We fetch sections one after another to prevent browser lag and API rate limiting.
-   */
   const loadAllDashboardData = async () => {
     setLoadingTrends(true);
     setLoadingMonthly(true);
     try {
-        // 1. Load Daily Trends first
         const daily = await fetchDailyTrends();
         setTrends(daily);
         setLoadingTrends(false);
 
-        // Small delay to let the UI breath
         await new Promise(r => setTimeout(r, 300));
 
-        // 2. Load Monthly Trends after Daily finishes
         const monthly = await fetchMonthlyTrends();
         setMonthlyTrends(monthly);
         setLoadingMonthly(false);
@@ -134,6 +127,20 @@ const App: React.FC = () => {
         setLoadingTrends(false);
         setLoadingMonthly(false);
     }
+  };
+
+  const handleRegenerateCard = async (targetTrend: Trend) => {
+      const newTrend = await regenerateTrend(targetTrend);
+      if (newTrend) {
+          // Update the specific card in the appropriate list
+          setTrends(prev => prev.map(t => t.id === targetTrend.id ? newTrend : t));
+          setMonthlyTrends(prev => prev.map(t => t.id === targetTrend.id ? newTrend : t));
+          setTshirtTrends(prev => prev.map(t => t.id === targetTrend.id ? newTrend : t));
+          
+          // Refresh caches
+          localStorage.setItem('cached_trends', JSON.stringify(trends.map(t => t.id === targetTrend.id ? newTrend : t)));
+          localStorage.setItem('cached_monthly', JSON.stringify(monthlyTrends.map(t => t.id === targetTrend.id ? newTrend : t)));
+      }
   };
 
   const handleSystemKeyUpdate = (key: string) => {
@@ -281,12 +288,6 @@ const App: React.FC = () => {
             <div className="max-w-[1400px] mx-auto px-6 space-y-20 pb-20">
               <div className="relative z-20 animate-fade-in-up">
                  <KeywordFinder onNav={handleNav} />
-                 <div className="text-center mt-6">
-                     <button onClick={() => handleNav(AppView.NICHE_EXPLORER)} className="text-text-muted hover:text-blue-500 text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 mx-auto">
-                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                         Explore All Niches
-                     </button>
-                 </div>
               </div>
               <div className="animate-fade-in-up">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-6">
@@ -304,7 +305,7 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {trends.map((trend, idx) => (
                       <div key={trend.id} className="animate-fade-in-up">
-                          <TrendCard trend={trend} onClick={handleTrendClick} isSaved={savedTrends.has(trend.id)} onToggleSave={handleToggleSave} />
+                          <TrendCard trend={trend} onClick={handleTrendClick} isSaved={savedTrends.has(trend.id)} onToggleSave={handleToggleSave} onRegenerate={handleRegenerateCard} />
                       </div>
                     ))}
                   </div>
@@ -325,7 +326,7 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                       {monthlyTrends.map((trend, idx) => (
                          <div key={trend.id} className="animate-fade-in-up">
-                            <TrendCard trend={trend} onClick={handleTrendClick} isSaved={savedTrends.has(trend.id)} onToggleSave={handleToggleSave} />
+                            <TrendCard trend={trend} onClick={handleTrendClick} isSaved={savedTrends.has(trend.id)} onToggleSave={handleToggleSave} onRegenerate={handleRegenerateCard} />
                          </div>
                       ))}
                     </div>
