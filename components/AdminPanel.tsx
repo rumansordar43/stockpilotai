@@ -4,11 +4,10 @@ import { ScriptItem, AppView, User } from '../types';
 
 interface AdminPanelProps {
   onLogout: () => void;
-  onUpdateApiKey: (key: string) => void;
   onNav: (view: AppView) => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout, onUpdateApiKey, onNav }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout, onNav }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [scripts, setScripts] = useState<ScriptItem[]>([]);
   const [newScript, setNewScript] = useState<Partial<ScriptItem>>({

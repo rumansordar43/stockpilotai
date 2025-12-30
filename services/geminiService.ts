@@ -1,11 +1,91 @@
 
+import { GoogleGenAI, Type } from "@google/genai";
 import { Trend, DeepAnalysisResult, GeneratedMetadata, NicheComparisonResult, MetadataConfig } from "../types";
 
-const GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+// Initialize the Gemini API client using the environment variable
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Unified API key getter
-const getApiKey = () => localStorage.getItem('user_api_key') || process.env.API_KEY || '';
+// Define schemas for structured JSON responses from Gemini
+const trendSchema = {
+  type: Type.OBJECT,
+  properties: {
+    id: { type: Type.STRING },
+    topic: { type: Type.STRING },
+    niche: { type: Type.STRING },
+    competition: { type: Type.STRING, description: "Must be 'Low', 'Medium', or 'High'" },
+    category: { type: Type.STRING },
+    description: { type: Type.STRING },
+    potentialEarnings: { type: Type.STRING },
+    popularityScore: { type: Type.NUMBER },
+    trendHistory: { type: Type.ARRAY, items: { type: Type.NUMBER }, description: "Array of 7 integers representing demand history" },
+  },
+  required: ['id', 'topic', 'niche', 'competition', 'category', 'description', 'potentialEarnings', 'popularityScore', 'trendHistory'],
+};
+
+const metadataSchema = {
+  type: Type.OBJECT,
+  properties: {
+    title: { type: Type.STRING },
+    description: { type: Type.STRING },
+    keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ['title', 'description', 'keywords'],
+};
+
+const deepAnalysisSchema = {
+  type: Type.OBJECT,
+  properties: {
+    nichePath: { type: Type.STRING },
+    searchVolume: { type: Type.STRING },
+    difficulty: { type: Type.STRING },
+    visualStyle: { type: Type.STRING },
+    composition: { type: Type.STRING },
+    suggestedPrompt: { type: Type.STRING },
+    relatedKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+    lowCompetitionAlternatives: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          topic: { type: Type.STRING },
+          score: { type: Type.NUMBER },
+          reason: { type: Type.STRING }
+        },
+        required: ['topic', 'score', 'reason']
+      }
+    }
+  },
+  required: ['nichePath', 'searchVolume', 'difficulty', 'visualStyle', 'composition', 'suggestedPrompt', 'relatedKeywords', 'lowCompetitionAlternatives']
+};
+
+const comparisonSchema = {
+  type: Type.OBJECT,
+  properties: {
+    winner: { type: Type.STRING },
+    winnerReason: { type: Type.STRING },
+    topicA: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        score: { type: Type.NUMBER },
+        pros: { type: Type.ARRAY, items: { type: Type.STRING } },
+        cons: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['name', 'score', 'pros', 'cons']
+    },
+    topicB: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        score: { type: Type.NUMBER },
+        pros: { type: Type.ARRAY, items: { type: Type.STRING } },
+        cons: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['name', 'score', 'pros', 'cons']
+    }
+  },
+  required: ['winner', 'winnerReason', 'topicA', 'topicB']
+};
 
 type ErrorListener = (message: string) => void;
 let globalErrorListener: ErrorListener | null = null;
@@ -18,75 +98,21 @@ const notifyError = (message: string) => {
   if (globalErrorListener) globalErrorListener(message);
 };
 
-// Robust JSON extraction from AI response
-const cleanJsonString = (str: string) => {
-    const start = str.indexOf('{');
-    const end = str.lastIndexOf('}');
-    if (start !== -1 && end !== -1) {
-        return str.substring(start, end + 1);
-    }
-    const arrayStart = str.indexOf('[');
-    const arrayEnd = str.lastIndexOf(']');
-    if (arrayStart !== -1 && arrayEnd !== -1) {
-        return str.substring(arrayStart, arrayEnd + 1);
-    }
-    return str.trim();
-};
-
-const callGroq = async (messages: any[], jsonMode: boolean = true) => {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("MISSING_API_KEY");
-
-  const requestMessages = [...messages];
-  if (jsonMode && !messages.some(m => m.role === 'system')) {
-      requestMessages.unshift({ 
-          role: "system", 
-          content: "You are a specialized JSON assistant. Your output must ALWAYS be a single valid JSON object. Do not include any explanation or markdown formatting outside the object." 
-      });
-  }
-
+// Internal helper for generating content with JSON schema
+const generateJsonContent = async (prompt: string, schema: any, modelName: string = 'gemini-3-flash-preview') => {
   try {
-    const response = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: schema,
       },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: requestMessages,
-        temperature: 0.1,
-        max_completion_tokens: 3000,
-        response_format: jsonMode ? { type: "json_object" } : undefined,
-        stream: false
-      })
     });
-
-    if (response.status === 429) {
-      throw new Error("RATE_LIMIT");
-    }
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error?.message || `API Error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    let content = data.choices[0].message.content;
-    
-    if (jsonMode) {
-        content = cleanJsonString(content);
-    }
-    
-    return content;
+    return JSON.parse(response.text);
   } catch (error: any) {
-    if (error.message === "RATE_LIMIT") {
-      notifyError("Your API key limit is reached. Please change or update your API key in Settings.");
-    } else if (error.message === "MISSING_API_KEY") {
-      notifyError("API Key is missing. Please add your Groq API key in Settings.");
-    } else {
-      notifyError(`Groq Error: ${error.message}`);
-    }
+    console.error("Gemini API Error:", error);
+    notifyError(`Gemini Error: ${error.message}`);
     throw error;
   }
 };
@@ -115,9 +141,13 @@ const generateRandomTrends = (count: number, type: 'general' | 'tshirt' | 'png' 
 
 export const fetchDailyTrends = async (): Promise<Trend[]> => {
   try {
-    const prompt = 'Identify 9 diverse and profitable microstock niches. Return JSON: { "trends": [{id, topic, niche, competition, category, description, potentialEarnings, popularityScore, trendHistory[]}] }';
-    const res = await callGroq([{ role: "user", content: prompt }]);
-    return JSON.parse(res).trends || generateRandomTrends(6);
+    const prompt = 'Identify 9 diverse and profitable microstock niches. Provide unique IDs and varied categories.';
+    const data = await generateJsonContent(prompt, {
+        type: Type.OBJECT,
+        properties: { trends: { type: Type.ARRAY, items: trendSchema } },
+        required: ['trends']
+    });
+    return data.trends || generateRandomTrends(6);
   } catch (error) {
     return generateRandomTrends(6);
   }
@@ -125,9 +155,13 @@ export const fetchDailyTrends = async (): Promise<Trend[]> => {
 
 export const fetchMonthlyTrends = async (): Promise<Trend[]> => {
   try {
-    const prompt = 'Identify 6 major upcoming holidays or seasonal events for the next 60 days. Return JSON: { "trends": [] }.';
-    const res = await callGroq([{ role: "user", content: prompt }]);
-    return JSON.parse(res).trends || generateRandomTrends(3);
+    const prompt = 'Identify 6 major upcoming holidays or seasonal events for the next 60 days for microstock.';
+    const data = await generateJsonContent(prompt, {
+        type: Type.OBJECT,
+        properties: { trends: { type: Type.ARRAY, items: trendSchema } },
+        required: ['trends']
+    });
+    return data.trends || generateRandomTrends(3);
   } catch (error) {
     return generateRandomTrends(3);
   }
@@ -135,9 +169,13 @@ export const fetchMonthlyTrends = async (): Promise<Trend[]> => {
 
 export const fetchTShirtTrends = async (): Promise<Trend[]> => {
   try {
-    const prompt = 'Identify 9 high-selling T-Shirt niches for Print on Demand. Return JSON: { "trends": [] }.';
-    const res = await callGroq([{ role: "user", content: prompt }]);
-    return JSON.parse(res).trends || generateRandomTrends(6, 'tshirt');
+    const prompt = 'Identify 9 high-selling T-Shirt niches for Print on Demand.';
+    const data = await generateJsonContent(prompt, {
+        type: Type.OBJECT,
+        properties: { trends: { type: Type.ARRAY, items: trendSchema } },
+        required: ['trends']
+    });
+    return data.trends || generateRandomTrends(6, 'tshirt');
   } catch (error) {
     return generateRandomTrends(6, 'tshirt');
   }
@@ -145,9 +183,13 @@ export const fetchTShirtTrends = async (): Promise<Trend[]> => {
 
 export const fetchPngTrends = async (): Promise<Trend[]> => {
     try {
-      const prompt = 'Identify 9 isolated PNG asset niches that are currently trending. Return JSON: { "trends": [] }.';
-      const res = await callGroq([{ role: "user", content: prompt }]);
-      return JSON.parse(res).trends || generateRandomTrends(6, 'png');
+      const prompt = 'Identify 9 isolated PNG asset niches that are currently trending.';
+      const data = await generateJsonContent(prompt, {
+        type: Type.OBJECT,
+        properties: { trends: { type: Type.ARRAY, items: trendSchema } },
+        required: ['trends']
+    });
+      return data.trends || generateRandomTrends(6, 'png');
     } catch (error) {
       return generateRandomTrends(6, 'png');
     }
@@ -155,9 +197,13 @@ export const fetchPngTrends = async (): Promise<Trend[]> => {
 
 export const regenerateTrend = async (currentTrend: Trend): Promise<Trend | null> => {
     try {
-        const prompt = `Generate one unique, high-profit microstock niche idea for the category: "${currentTrend.category}". Return JSON: { "trend": {id, topic, niche, competition, category, description, potentialEarnings, popularityScore, trendHistory[]} }.`;
-        const res = await callGroq([{ role: "user", content: prompt }]);
-        return JSON.parse(res).trend || null;
+        const prompt = `Generate one unique, high-profit microstock niche idea for the category: "${currentTrend.category}".`;
+        const data = await generateJsonContent(prompt, {
+            type: Type.OBJECT,
+            properties: { trend: trendSchema },
+            required: ['trend']
+        });
+        return data.trend || null;
     } catch (error) {
         return null;
     }
@@ -165,20 +211,18 @@ export const regenerateTrend = async (currentTrend: Trend): Promise<Trend | null
 
 export const deepAnalyzeTopic = async (topic: string): Promise<DeepAnalysisResult | null> => {
   try {
-    const prompt = `Perform deep market analysis for: "${topic}". Return JSON: {nichePath, searchVolume, difficulty, visualStyle, composition, suggestedPrompt, relatedKeywords[], lowCompetitionAlternatives: [{topic, score, reason}]}.`;
-    const res = await callGroq([{ role: "user", content: prompt }]);
-    const data = JSON.parse(res);
+    const prompt = `Perform deep market analysis for: "${topic}". Include niche path, search volume, difficulty, and specific low competition alternatives.`;
+    const data = await generateJsonContent(prompt, deepAnalysisSchema, 'gemini-3-pro-preview');
     data.originalQuery = topic;
-    return data;
+    return data as DeepAnalysisResult;
   } catch (error) {
     return null;
   }
 };
 
 export const compareNiches = async (topicA: string, topicB: string): Promise<NicheComparisonResult> => {
-  const prompt = `Compare these two microstock niches: "${topicA}" vs "${topicB}". Return JSON: {winner, winnerReason, topicA: {name, score, pros[], cons[]}, topicB: {name, score, pros[], cons[]}}.`;
-  const res = await callGroq([{ role: "user", content: prompt }]);
-  return JSON.parse(res);
+  const prompt = `Compare these two microstock niches: "${topicA}" vs "${topicB}". Determine a winner based on market potential and current trends.`;
+  return await generateJsonContent(prompt, comparisonSchema, 'gemini-3-pro-preview');
 };
 
 const getPlatformRules = (platform: string) => {
@@ -201,12 +245,9 @@ export const generateMetadataFromFilename = async (filename: string, config: Met
   - Keywords: Exactly ${config.keywordCount} keywords.
   - Image Type: ${config.imageType}
   ${config.negativeTitle.enabled ? `- DO NOT include these words in Title/Desc: ${config.negativeTitle.value}` : ''}
-  ${config.negativeKeywords.enabled ? `- DO NOT include these words in Keywords: ${config.negativeKeywords.value}` : ''}
+  ${config.negativeKeywords.enabled ? `- DO NOT include these words in Keywords: ${config.negativeKeywords.value}` : ''}`;
   
-  Return JSON format matching: {"title": "...", "description": "...", "keywords": []}`;
-  
-  const res = await callGroq([{ role: "user", content: prompt }]);
-  let data = JSON.parse(res);
+  const data = await generateJsonContent(prompt, metadataSchema);
   
   if (config.prefix.enabled && config.prefix.value) {
       if (data.title) data.title = `${config.prefix.value} ${data.title}`;
@@ -221,43 +262,47 @@ export const generateMetadataFromFilename = async (filename: string, config: Met
 };
 
 export const generateImageMetadata = async (base64Data: string, mimeType: string, config: MetadataConfig): Promise<GeneratedMetadata | null> => {
-    const cleanBase64 = base64Data.includes('base64,') ? base64Data : `data:${mimeType};base64,${base64Data}`;
+    const data = base64Data.includes('base64,') ? base64Data.split('base64,')[1] : base64Data;
     const platformRules = getPlatformRules(config.platform);
     
-    const messages = [
-        {
-            role: "user",
-            content: [
-                { type: "text", text: `Analyze this image for commercial microstock. 
-                  Platform Focus: ${config.platform}
-                  Rules:
-                  ${platformRules}
-                  - Title/Description: max ${config.titleLength} chars.
-                  - Keywords count: ${config.keywordCount}.
-                  - Image Type: ${config.imageType}
-                  ${config.negativeTitle.enabled ? `DO NOT use these words in Title/Desc: ${config.negativeTitle.value}` : ''}
-                  ${config.negativeKeywords.enabled ? `DO NOT use these words in Keywords: ${config.negativeKeywords.value}` : ''}
-                  
-                  Output strictly JSON: {"title": "...", "description": "...", "keywords": []}` 
-                },
-                { type: "image_url", image_url: { url: cleanBase64 } }
-            ]
-        }
-    ];
     try {
-        const res = await callGroq(messages);
-        let data = JSON.parse(res);
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: [
+                {
+                    parts: [
+                        { inlineData: { data, mimeType } },
+                        { text: `Analyze this image for commercial microstock. 
+                          Platform Focus: ${config.platform}
+                          Rules:
+                          ${platformRules}
+                          - Title/Description: max ${config.titleLength} chars.
+                          - Keywords count: ${config.keywordCount}.
+                          - Image Type: ${config.imageType}
+                          ${config.negativeTitle.enabled ? `DO NOT use these words in Title/Desc: ${config.negativeTitle.value}` : ''}
+                          ${config.negativeKeywords.enabled ? `DO NOT use these words in Keywords: ${config.negativeKeywords.value}` : ''}` 
+                        }
+                    ]
+                }
+            ],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: metadataSchema
+            }
+        });
+        
+        let metadata = JSON.parse(response.text);
         
         if (config.prefix.enabled && config.prefix.value) {
-            if (data.title) data.title = `${config.prefix.value} ${data.title}`;
-            if (data.description) data.description = `${config.prefix.value} ${data.description}`;
+            if (metadata.title) metadata.title = `${config.prefix.value} ${metadata.title}`;
+            if (metadata.description) metadata.description = `${config.prefix.value} ${metadata.description}`;
         }
         if (config.suffix.enabled && config.suffix.value) {
-            if (data.title) data.title = `${data.title} ${config.suffix.value}`;
-            if (data.description) data.description = `${data.description} ${config.suffix.value}`;
+            if (metadata.title) metadata.title = `${metadata.title} ${config.suffix.value}`;
+            if (metadata.description) metadata.description = `${metadata.description} ${config.suffix.value}`;
         }
         
-        return data;
+        return metadata;
     } catch (error) {
         console.error("Vision Error:", error);
         return null;
@@ -265,23 +310,33 @@ export const generateImageMetadata = async (base64Data: string, mimeType: string
 };
 
 export const generateSinglePrompt = async (topic: string, style: string, composition: string): Promise<string> => {
-  const prompt = `Generate one professional AI image prompt for: "${topic}". Style: ${style}. Composition: ${composition}. Return JSON: { "prompt": "..." }.`;
-  const res = await callGroq([{ role: "user", content: prompt }]);
-  return JSON.parse(res).prompt || "";
+  const prompt = `Generate one professional AI image prompt for: "${topic}". Style: ${style}. Composition: ${composition}.`;
+  const data = await generateJsonContent(prompt, {
+      type: Type.OBJECT,
+      properties: { prompt: { type: Type.STRING } },
+      required: ['prompt']
+  });
+  return data.prompt || "";
 };
 
 export const generateBulkPrompts = async (topic: string, count: number, style: string, composition: string): Promise<string[]> => {
-    const prompt = `Generate ${count} unique AI image prompts for: "${topic}". Style: ${style}. Return JSON: { "prompts": [] }.`;
-    const res = await callGroq([{ role: "user", content: prompt }]);
-    return JSON.parse(res).prompts || [];
+    const prompt = `Generate ${count} unique AI image prompts for: "${topic}". Style: ${style}. Composition: ${composition}.`;
+    const data = await generateJsonContent(prompt, {
+        type: Type.OBJECT,
+        properties: { prompts: { type: Type.ARRAY, items: { type: Type.STRING } } },
+        required: ['prompts']
+    });
+    return data.prompts || [];
 };
 
 export const fetchNichesByCategory = async (category: string): Promise<Trend[]> => {
-    const prompt = `Identify 9 trending niches for microstock category: "${category}". Return JSON: { "trends": [] }.`;
-    const res = await callGroq([{ role: "user", content: prompt }]);
-    return JSON.parse(res).trends || [];
+    const prompt = `Identify 9 trending niches for microstock category: "${category}".`;
+    const data = await generateJsonContent(prompt, {
+        type: Type.OBJECT,
+        properties: { trends: { type: Type.ARRAY, items: trendSchema } },
+        required: ['trends']
+    });
+    return data.trends || [];
 };
 
-export const setDynamicApiKey = (key: string) => {
-  localStorage.setItem('user_api_key', key);
-};
+// Removed setDynamicApiKey and local storage dependency as per guidelines
