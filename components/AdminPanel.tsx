@@ -9,11 +9,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout, onUpdateApiKey, onNav }) => {
-  const [apiKey, setApiKey] = useState('');
   const [users, setUsers] = useState<User[]>([]);
-  const [updateInterval, setUpdateInterval] = useState('24');
-  const [lastUpdate, setLastUpdate] = useState<string>('Never');
-  
   const [scripts, setScripts] = useState<ScriptItem[]>([]);
   const [newScript, setNewScript] = useState<Partial<ScriptItem>>({
       category: 'Illustrator',
@@ -25,29 +21,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout, onUpdateApiKey, onNav
     const storedUsers = localStorage.getItem('mock_users');
     if (storedUsers) setUsers(JSON.parse(storedUsers));
 
-    const sysKey = localStorage.getItem('system_api_key');
-    if (sysKey) setApiKey(sysKey);
-
-    const interval = localStorage.getItem('system_update_interval');
-    if (interval) setUpdateInterval(interval);
-
-    const last = localStorage.getItem('last_trend_update');
-    if (last) setLastUpdate(new Date(parseInt(last)).toLocaleString());
-
     const storedScripts = localStorage.getItem('system_scripts');
     if (storedScripts) setScripts(JSON.parse(storedScripts));
   }, []);
-
-  const handleSaveKey = () => {
-      localStorage.setItem('system_api_key', apiKey);
-      onUpdateApiKey(apiKey);
-      alert("System Groq API Key Updated!");
-  };
-
-  const forceUpdateNow = () => {
-      localStorage.removeItem('last_trend_update');
-      window.location.reload();
-  };
 
   const handleAddScript = () => {
       if (!newScript.title || !newScript.downloadUrl) {
@@ -85,42 +61,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout, onUpdateApiKey, onNav
         <div className="flex flex-col md:flex-row justify-between items-center border-b border-white/10 pb-8 gap-4">
             <div>
                 <h1 className="text-3xl font-display font-bold text-white mb-2">Admin Control Center</h1>
-                <p className="text-slate-400">Welcome, System Admin. Backend: Groq Llama 4 Scout.</p>
+                <p className="text-slate-400">Manage premium scripts and system resources.</p>
             </div>
             <div className="flex gap-4">
                 <button onClick={() => onNav(AppView.DASHBOARD)} className="bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 px-6 py-2 rounded-lg font-bold transition-colors">Go to Dashboard</button>
                 <button onClick={onLogout} className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 px-6 py-2 rounded-lg font-bold transition-colors">Logout Session</button>
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="glass-panel p-8 rounded-3xl border border-blue-500/30">
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <span className="text-blue-400">⚡</span> System Groq API Config
-                </h2>
-                <div className="flex gap-4">
-                    <input 
-                        type="text" 
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="gsk_..., gsk_..."
-                        className="flex-grow bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
-                    />
-                    <button onClick={handleSaveKey} className="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-xl font-bold shadow-lg shadow-blue-900/20">Save Key</button>
-                </div>
-            </div>
-
-            <div className="glass-panel p-8 rounded-3xl border border-teal-500/30">
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <span className="text-teal-400">🕒</span> Automation Control
-                </h2>
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-white/5">
-                        <span className="text-slate-400 text-sm">Last Update:</span>
-                        <span className="text-white font-mono font-bold text-sm">{lastUpdate}</span>
-                    </div>
-                    <button onClick={forceUpdateNow} className="w-full text-xs font-bold text-blue-400 hover:text-white border border-blue-500/30 px-3 py-3 rounded-lg hover:bg-blue-600/20 transition-all">Force Update Trends Now</button>
-                </div>
             </div>
         </div>
 
@@ -140,16 +85,50 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout, onUpdateApiKey, onNav
                          </select>
                     </div>
                     <input type="text" placeholder="Download URL" className="w-full bg-slate-900/50 border border-white/10 rounded-lg p-2 text-white" value={newScript.downloadUrl || ''} onChange={e => setNewScript({...newScript, downloadUrl: e.target.value})} />
+                    <textarea placeholder="Instructions" className="w-full bg-slate-900/50 border border-white/10 rounded-lg p-2 text-white h-24" value={newScript.instructions || ''} onChange={e => setNewScript({...newScript, instructions: e.target.value})} />
+                    <input type="text" placeholder="Image URLs (comma separated)" className="w-full bg-slate-900/50 border border-white/10 rounded-lg p-2 text-white" value={imageInput} onChange={e => setImageInput(e.target.value)} />
                     <button onClick={handleAddScript} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg">Add Script</button>
                 </div>
-                <div className="bg-slate-900/50 rounded-xl border border-white/5 p-4 overflow-y-auto max-h-[300px] custom-scrollbar">
-                    {scripts.map(s => (
-                        <div key={s.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg mb-2">
-                            <span className="text-sm font-bold">{s.title}</span>
-                            <button onClick={() => handleDeleteScript(s.id)} className="text-red-400 text-xs font-bold">Delete</button>
-                        </div>
-                    ))}
+                <div className="bg-slate-900/50 rounded-xl border border-white/5 p-4 overflow-y-auto max-h-[400px] custom-scrollbar">
+                    {scripts.length === 0 ? (
+                        <p className="text-center text-slate-500 py-10">No scripts added yet.</p>
+                    ) : (
+                        scripts.map(s => (
+                            <div key={s.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg mb-2">
+                                <span className="text-sm font-bold">{s.title}</span>
+                                <button onClick={() => handleDeleteScript(s.id)} className="text-red-400 text-xs font-bold">Delete</button>
+                            </div>
+                        ))
+                    )}
                 </div>
+            </div>
+        </div>
+
+        <div className="glass-panel p-8 rounded-3xl border border-white/10">
+            <h2 className="text-xl font-bold text-white mb-6">User Overview ({users.length})</h2>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                    <thead>
+                        <tr className="border-b border-white/10 text-slate-400">
+                            <th className="pb-3">Name</th>
+                            <th className="pb-3">Email</th>
+                            <th className="pb-3">Joined</th>
+                            <th className="pb-3">Role</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.map(u => (
+                            <tr key={u.id} className="border-b border-white/5">
+                                <td className="py-3">{u.name}</td>
+                                <td className="py-3 font-mono text-slate-400">{u.email}</td>
+                                <td className="py-3 text-slate-500">{new Date(u.joinedDate).toLocaleDateString()}</td>
+                                <td className="py-3">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-purple-600' : 'bg-slate-800'}`}>{u.role}</span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
       </div>
