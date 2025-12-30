@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import Header from './components/Header';
 import Hero from './components/Hero';
 import TrendCard from './components/TrendCard';
 import TrendDetail from './components/TrendDetail';
@@ -201,6 +202,15 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen text-text-main font-sans selection:bg-blue-500 selection:text-white pb-0 flex flex-col perspective-container transition-colors duration-500">
       
+      {isAuthenticated && (
+        <Header 
+          currentView={currentView} 
+          onNav={handleNav} 
+          user={currentUser} 
+          onLogout={handleLogout} 
+        />
+      )}
+
       {toastMessage && (
         <div className="fixed top-24 right-6 z-[100] animate-fade-in-up">
            <div className={`glass-panel p-4 rounded-xl border ${toastMessage.includes('limit') || toastMessage.includes('reached') ? 'border-red-500/50 bg-red-900/90' : 'border-red-500/50 bg-surface/90'} shadow-[0_0_30px_rgba(239,68,68,0.4)] flex items-center gap-3 max-w-sm backdrop-blur-xl`}>
@@ -245,19 +255,19 @@ const App: React.FC = () => {
         )}
         
         {currentView === AppView.DETAIL && selectedTrend && <TrendDetail trend={selectedTrend} onBack={() => setCurrentView(AppView.DASHBOARD)} onNav={handleNav} />}
-        {currentView === AppView.KEYWORDS && <KeywordFinder onNav={handleNav} />}
-        {currentView === AppView.METADATA && <MetadataGenerator onNav={handleNav} />}
-        {currentView === AppView.PROMPTS && <PromptGenerator onNav={handleNav} />}
-        {currentView === AppView.TSHIRTS && <TShirtStudio trends={tshirtTrends} onTrendClick={handleTrendClick} savedTrends={savedTrends} onToggleSave={handleToggleSave} onNav={handleNav} />}
-        {currentView === AppView.PNG_STUDIO && <PngStudio onTrendClick={handleTrendClick} savedTrends={savedTrends} onToggleSave={handleToggleSave} onNav={handleNav} />}
-        {currentView === AppView.MODEL_RELEASE && <ModelReleaseGen />}
-        {currentView === AppView.NICHE_BATTLE && <NicheBattle onNav={handleNav} />}
-        {currentView === AppView.PORTFOLIO && <Portfolio />}
-        {currentView === AppView.NICHE_EXPLORER && <NicheExplorer onTrendClick={handleTrendClick} savedTrends={savedTrends} onToggleSave={handleToggleSave} onBack={() => setCurrentView(AppView.DASHBOARD)} onNav={handleNav} />}
-        {currentView === AppView.SCRIPTS && <ScriptsHub />}
-        {currentView === AppView.PRIVACY && <PrivacyPolicy />}
-        {currentView === AppView.TERMS && <TermsOfService />}
-        {currentView === AppView.SETTINGS && <Settings />}
+        {currentView === AppView.KEYWORDS && <div className="pt-24"><KeywordFinder onNav={handleNav} /></div>}
+        {currentView === AppView.METADATA && <div className="pt-24"><MetadataGenerator onNav={handleNav} /></div>}
+        {currentView === AppView.PROMPTS && <div className="pt-24"><PromptGenerator onNav={handleNav} /></div>}
+        {currentView === AppView.TSHIRTS && <div className="pt-24"><TShirtStudio trends={tshirtTrends} onTrendClick={handleTrendClick} savedTrends={savedTrends} onToggleSave={handleToggleSave} onNav={handleNav} /></div>}
+        {currentView === AppView.PNG_STUDIO && <div className="pt-24"><PngStudio onTrendClick={handleTrendClick} savedTrends={savedTrends} onToggleSave={handleToggleSave} onNav={handleNav} /></div>}
+        {currentView === AppView.MODEL_RELEASE && <div className="pt-24"><ModelReleaseGen /></div>}
+        {currentView === AppView.NICHE_BATTLE && <div className="pt-24"><NicheBattle onNav={handleNav} /></div>}
+        {currentView === AppView.PORTFOLIO && <div className="pt-24"><Portfolio /></div>}
+        {currentView === AppView.NICHE_EXPLORER && <div className="pt-24"><NicheExplorer onTrendClick={handleTrendClick} savedTrends={savedTrends} onToggleSave={handleToggleSave} onBack={() => setCurrentView(AppView.DASHBOARD)} onNav={handleNav} /></div>}
+        {currentView === AppView.SCRIPTS && <div className="pt-24"><ScriptsHub /></div>}
+        {currentView === AppView.PRIVACY && <div className="pt-24"><PrivacyPolicy /></div>}
+        {currentView === AppView.TERMS && <div className="pt-24"><TermsOfService /></div>}
+        {currentView === AppView.SETTINGS && <div className="pt-24"><Settings /></div>}
       </div>
       
       <Footer onNav={handleNav} />
