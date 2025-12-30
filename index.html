@@ -1,0 +1,193 @@
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- SEO Meta Tags -->
+    <title>StockPilotAI - Automated Microstock Intelligence & Prompt Generator</title>
+    <meta name="description" content="Dominate the microstock market with StockPilotAI. Instantly find low-competition trends, generate commercial AI prompts, and optimize metadata for Shutterstock, Adobe Stock, and Freepik." />
+    <meta name="keywords" content="microstock tool, AI prompt generator, stock photography trends, shutterstock keywords, adobe stock research, midjourney prompts, t-shirt design ideas, png asset generator" />
+    <meta name="author" content="Md Ibrahim" />
+    
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: ['class', '[data-theme="dark"]'],
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Outfit', 'sans-serif'],
+              display: ['Space Grotesk', 'sans-serif'],
+            },
+            colors: {
+              darkbg: 'var(--color-bg)', 
+              surface: 'var(--color-surface)',
+              border: 'var(--color-border)',
+              text: {
+                main: 'var(--color-text-main)',
+                muted: 'var(--color-text-muted)',
+              },
+              primary: '#2563eb',
+              secondary: '#0d9488',
+              accent: '#7c3aed',
+            },
+            animation: {
+              'float': 'float 8s ease-in-out infinite',
+              'float-delayed': 'float 8s ease-in-out 4s infinite',
+              'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'shimmer': 'shimmer 3s linear infinite',
+              'fade-in-up': 'fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+              'fade-in': 'fadeIn 0.6s ease-out forwards',
+              'tilt': 'tilt 10s infinite linear',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-20px)' },
+              },
+              shimmer: {
+                '0%': { backgroundPosition: '200% center' },
+                '100%': { backgroundPosition: '-200% center' },
+              },
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(40px) scale(0.95)' },
+                '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+              },
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              tilt: {
+                '0%, 50%, 100%': { transform: 'rotate(0deg)' },
+                '25%': { transform: 'rotate(1deg)' },
+                '75%': { transform: 'rotate(-1deg)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --color-bg: #f8fafc;
+        --color-surface: #ffffff;
+        --color-border: rgba(0, 0, 0, 0.1);
+        --color-text-main: #0f172a;
+        --color-text-muted: #64748b;
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(0, 0, 0, 0.05);
+        --glass-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+      }
+
+      [data-theme="dark"] {
+        --color-bg: #020617;
+        --color-surface: #0f172a;
+        --color-border: rgba(255, 255, 255, 0.1);
+        --color-text-main: #e2e8f0;
+        --color-text-muted: #94a3b8;
+        --glass-bg: rgba(15, 23, 42, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.08);
+        --glass-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
+      }
+
+      body {
+        background-color: var(--color-bg);
+        color: var(--color-text-main);
+        overflow-x: hidden;
+        transition: background-color 0.5s ease, color 0.5s ease;
+      }
+
+      .nav-container-custom {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 9999px;
+        padding: 4px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      .nav-container-custom::-webkit-scrollbar { display: none; }
+
+      .nav-btn-custom {
+        padding: 8px 14px;
+        border-radius: 9999px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid transparent;
+        white-space: nowrap;
+        color: #94a3b8;
+        background: transparent;
+        transition: all 0.2s ease;
+        flex-shrink: 0; /* Important: prevents labels from shrinking */
+      }
+      .nav-btn-custom:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .nav-btn-custom.active {
+        color: #ffffff;
+        background: rgba(37, 99, 235, 0.2);
+        border-color: rgba(37, 99, 235, 0.3);
+      }
+
+      .glass-panel {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--glass-shadow);
+        transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      
+      .gradient-text {
+        background: linear-gradient(to right, #60a5fa, #2dd4bf, #c084fc);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 5s linear infinite;
+      }
+
+      .cyber-bg {
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        z-index: -1;
+        background: radial-gradient(circle at 50% 0%, var(--color-surface) 0%, var(--color-bg) 60%);
+      }
+
+      .aurora-orb {
+        position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.3; animation: float 15s infinite ease-in-out;
+      }
+      .aurora-1 { width: 800px; height: 800px; background: #1d4ed8; top: -200px; left: -100px; }
+      .aurora-2 { width: 600px; height: 600px; background: #0f766e; bottom: -100px; right: -100px; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "vite": "https://aistudiocdn.com/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <div class="cyber-bg">
+      <div class="aurora-orb aurora-1"></div>
+      <div class="aurora-orb aurora-2"></div>
+    </div>
+    <script type="module" src="./index.tsx"></script>
+  </body>
+</html>

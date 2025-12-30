@@ -1,0 +1,5 @@
+{
+  "name": "StockPilotAI",
+  "description": "A fully automated, futuristic microstock assistant that generates trending niche ideas, low-competition keywords, design prompts, and metadata using Gemini AI.",
+  "requestFramePermissions": []
+}
