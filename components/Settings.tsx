@@ -2,115 +2,115 @@
 import React, { useState, useEffect } from 'react';
 
 const Settings: React.FC = () => {
-  const [hasKey, setHasKey] = useState(false);
+  const [groqKey, setGroqKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
+  // Load key from localStorage on mount
   useEffect(() => {
-    const checkKey = async () => {
-      // @ts-ignore
-      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        // @ts-ignore
-        const result = await window.aistudio.hasSelectedApiKey();
-        setHasKey(result);
-      }
-    };
-    checkKey();
+    const savedKey = localStorage.getItem('groq_api_key');
+    if (savedKey) {
+      setGroqKey(savedKey);
+    }
   }, []);
 
-  const handleOpenKeySelector = async () => {
-    // @ts-ignore
-    if (window.aistudio && window.aistudio.openSelectKey) {
-      // @ts-ignore
-      await window.aistudio.openSelectKey();
-      setHasKey(true); // Proceed assuming success as per race condition notes
-    }
+  const handleSave = () => {
+    setSaveStatus('saving');
+    localStorage.setItem('groq_api_key', groqKey);
+    
+    // Simulate a small delay for better UX
+    setTimeout(() => {
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }, 600);
   };
 
   return (
-    <div className="max-w-4xl mx-auto w-full pt-28 pb-20 px-6 animate-fade-in-up">
-      <div className="glass-panel p-8 md:p-12 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden">
+    <div className="max-w-3xl mx-auto w-full pt-32 pb-20 px-6 animate-fade-in-up">
+      <div className="glass-panel p-8 md:p-12 rounded-[40px] border border-white/10 shadow-2xl relative overflow-hidden">
         
-        <div className="mb-10 relative z-10">
-            <h1 className="text-4xl font-display font-bold text-white mb-2">Platform Settings</h1>
-            <p className="text-slate-400">Configure your microstock market intelligence tools.</p>
+        {/* Ambient background effect */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-[80px] pointer-events-none"></div>
+
+        <div className="text-center mb-12 relative z-10">
+          <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-teal-500 rounded-3xl flex items-center justify-center text-white shadow-xl mx-auto mb-6 transform hover:rotate-6 transition-transform">
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <h1 className="text-4xl font-display font-bold text-white mb-2">API Configuration</h1>
+          <p className="text-slate-400">Enter your Groq API Key to power the platform intelligence.</p>
         </div>
 
-        <div className="space-y-8">
-            {/* API Key Selection Section - MANDATORY FOR VEO/PRO MODELS */}
-            <div className="bg-slate-900/80 border border-blue-500/30 p-8 rounded-2xl relative group">
-                <div className="absolute top-0 right-0 p-4">
-                   <div className={`w-3 h-3 rounded-full ${hasKey ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'}`}></div>
-                </div>
-                
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                   <span className="text-2xl">🔑</span> API Configuration
-                </h3>
-                <p className="text-slate-300 text-sm mb-6 leading-relaxed">
-                   To use high-quality features like Gemini Pro analysis and Image generation, you must select your own Google API key from a paid GCP project. 
-                </p>
-                
-                <div className="flex flex-col sm:flex-row gap-4 items-center">
-                    <button 
-                      onClick={handleOpenKeySelector}
-                      className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-900/30 transition-all transform hover:-translate-y-1"
-                    >
-                      {hasKey ? 'Change API Key' : 'Configure API Key'}
-                    </button>
-                    
-                    <a 
-                      href="https://ai.google.dev/gemini-api/docs/billing" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-400 hover:text-white underline decoration-blue-500/30"
-                    >
-                      Learn about API billing
-                    </a>
-                </div>
-                
-                {hasKey && (
-                   <p className="mt-4 text-xs text-green-400 font-bold flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      API Key Selected & Ready
-                   </p>
+        <div className="space-y-8 relative z-10">
+          <div className="space-y-4">
+            <label className="block text-xs font-black text-slate-500 uppercase tracking-[0.3em] ml-1">
+              Your Groq API Key
+            </label>
+            
+            <div className="relative group">
+              <input 
+                type={showKey ? "text" : "password"} 
+                value={groqKey}
+                onChange={(e) => setGroqKey(e.target.value)}
+                placeholder="gsk_xxxxxxxxxxxxxxxxxxxx"
+                className="w-full bg-slate-950/80 border border-white/10 rounded-2xl px-6 py-5 text-white font-mono text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-700"
+              />
+              <button 
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+              >
+                {showKey ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.888 9.888L5.123 5.123M18.825 13.875l4.052 4.052M13.385 13.385a3.001 3.001 0 01-4.242-4.242m12.727 1.563a10.05 10.05 0 01.125 1.677c0 4.477-2.943 8.268-7 9.542m-4.242-4.242L5.123 5.123" /></svg>
                 )}
+              </button>
             </div>
+            
+            <p className="text-[11px] text-slate-500 leading-relaxed italic px-2">
+              Note: Your API key is stored locally in your browser's memory and is never sent to our database.
+            </p>
+          </div>
 
-            {/* General Configuration */}
-            <div className="space-y-6">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-white/5 pb-2">System Preferences</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-white/5 rounded-xl border border-white/5">
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-widest">Update Frequency</label>
-                        <select className="w-full bg-slate-900 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
-                            <option>Real-time (Active)</option>
-                            <option>Every 12 Hours</option>
-                            <option>Daily Update</option>
-                        </select>
-                    </div>
-                    <div className="p-4 bg-white/5 rounded-xl border border-white/5">
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 tracking-widest">Default Export</label>
-                        <select className="w-full bg-slate-900 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
-                            <option>Adobe Stock (CSV)</option>
-                            <option>Shutterstock (TXT)</option>
-                            <option>Freepik (All-in-one)</option>
-                        </select>
-                    </div>
-                </div>
+          <div className="pt-4">
+            <button 
+              onClick={handleSave}
+              disabled={saveStatus === 'saving' || !groqKey}
+              className={`w-full py-5 rounded-2xl font-black text-lg transition-all transform active:scale-95 flex items-center justify-center gap-3 shadow-2xl ${
+                saveStatus === 'saved' 
+                ? 'bg-green-600 text-white' 
+                : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-blue-900/30'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {saveStatus === 'saving' ? (
+                <>
+                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span>Saving Key...</span>
+                </>
+              ) : saveStatus === 'saved' ? (
+                <>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                  <span>Configuration Saved!</span>
+                </>
+              ) : (
+                'Save Groq Configuration'
+              )}
+            </button>
+          </div>
 
-                <div className="p-6 bg-slate-900/50 rounded-2xl border border-white/5 flex justify-between items-center">
-                    <div>
-                        <h4 className="text-white font-bold">Cloud Synchronization</h4>
-                        <p className="text-xs text-slate-500 mt-1">Automatically sync your research history across devices.</p>
-                    </div>
-                    <div className="w-12 h-6 bg-blue-600 rounded-full p-1 relative cursor-pointer">
-                        <div className="w-4 h-4 bg-white rounded-full translate-x-6 shadow-sm"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="pt-8 border-t border-white/5 text-center">
-                 <button className="text-red-400 hover:text-red-300 font-bold text-sm transition-colors px-6 py-2 rounded-lg hover:bg-red-500/10">Reset All System Cache</button>
-            </div>
+          <div className="text-center pt-6">
+            <a 
+              href="https://console.groq.com/keys" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm font-bold text-blue-400 hover:text-white underline decoration-blue-500/30 transition-colors"
+            >
+              Get your Groq API Key here
+            </a>
+          </div>
         </div>
       </div>
     </div>
