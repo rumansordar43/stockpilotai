@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GeneratedMetadata, MetadataConfig, MetadataBatchItem, AppView } from '../types';
-import { generateImageMetadata, generateMetadataFromFilename, setGlobalErrorListener } from '../services/geminiService';
+import { generateImageMetadata, generateMetadataFromFilename } from '../services/geminiService';
 
 interface MetadataGeneratorProps {
     onNav: (view: AppView) => void;
@@ -17,70 +17,76 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
   const [queue, setQueue] = useState<MetadataBatchItem[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const isCurrentlyFetching = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Clean up object URLs to avoid memory leaks
+  // Cleanup object URLs to avoid memory leaks
   useEffect(() => {
     return () => {
         Object.values(previews).forEach(url => URL.revokeObjectURL(url));
     };
   }, [previews]);
 
-  // --- QUEUE PROCESSOR ---
-  useEffect(() => {
-    const processQueue = async () => {
-        if (!isProcessing) return;
+  // Main Queue Processor
+  const processNextInQueue = useCallback(async () => {
+    // Only proceed if not already fetching and processing is toggled on
+    if (isCurrentlyFetching.current || !isProcessing) return;
 
-        const nextIdx = queue.findIndex(item => item.status === 'pending');
-        
-        if (nextIdx === -1) {
-            setIsProcessing(false);
-            return;
-        }
-
-        setQueue(prev => prev.map((item, i) => i === nextIdx ? { ...item, status: 'processing' } : item));
-
-        const item = queue[nextIdx];
-        let result: GeneratedMetadata | null = null;
-        let errorMsg = 'AI Failed';
-
-        try {
-            if (item.file.type.startsWith('image/')) {
-                const base64 = await new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(item.file);
-                });
-                result = await generateImageMetadata(base64, item.file.type, config);
-            } else {
-                result = await generateMetadataFromFilename(item.file.name, config);
-            }
-
-            if (result) {
-                setQueue(prev => prev.map((it, i) => i === nextIdx ? { ...it, status: 'completed', metadata: result } : it));
-            } else {
-                setQueue(prev => prev.map((it, i) => i === nextIdx ? { ...it, status: 'error', errorMsg: errorMsg } : it));
-            }
-
-        } catch (err: any) {
-            setQueue(prev => prev.map((it, i) => i === nextIdx ? { ...it, status: 'error', errorMsg: 'Error' } : it));
-        }
-
-        setTimeout(processQueue, 100); 
-    };
-
-    if (isProcessing) {
-        processQueue();
+    const nextPendingItem = queue.find(item => item.status === 'pending');
+    
+    if (!nextPendingItem) {
+        setIsProcessing(false);
+        return;
     }
-  }, [isProcessing, queue, config]);
+
+    isCurrentlyFetching.current = true;
+
+    // Update status to processing
+    setQueue(prev => prev.map(it => it.id === nextPendingItem.id ? { ...it, status: 'processing' } : it));
+
+    try {
+        let result: GeneratedMetadata | null = null;
+        
+        if (nextPendingItem.file.type.startsWith('image/')) {
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(new Error("File read error"));
+                reader.readAsDataURL(nextPendingItem.file);
+            });
+            result = await generateImageMetadata(base64, nextPendingItem.file.type, config);
+        } else {
+            result = await generateMetadataFromFilename(nextPendingItem.file.name, config);
+        }
+
+        if (result && result.title && result.keywords) {
+            setQueue(prev => prev.map(it => it.id === nextPendingItem.id ? { ...it, status: 'completed', metadata: result } : it));
+        } else {
+            setQueue(prev => prev.map(it => it.id === nextPendingItem.id ? { ...it, status: 'error', errorMsg: 'Empty or invalid response from AI' } : it));
+        }
+    } catch (err: any) {
+        setQueue(prev => prev.map(it => it.id === nextPendingItem.id ? { ...it, status: 'error', errorMsg: err.message || 'Processing failed' } : it));
+    } finally {
+        isCurrentlyFetching.current = false;
+    }
+  }, [queue, config, isProcessing]);
+
+  // Trigger processor when queue or processing status changes
+  useEffect(() => {
+    if (isProcessing) {
+        const timer = setTimeout(() => {
+            processNextInQueue();
+        }, 100); // Small delay to allow UI to breathe
+        return () => clearTimeout(timer);
+    }
+  }, [isProcessing, queue, processNextInQueue]);
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files) return;
       
-      const newFiles = Array.from(e.target.files).map(file => {
+      const newItems = Array.from(e.target.files).map(file => {
           const id = Math.random().toString(36).substr(2, 9);
           
-          // Generate preview for images
           if (file.type.startsWith('image/')) {
               const url = URL.createObjectURL(file);
               setPreviews(prev => ({ ...prev, [id]: url }));
@@ -93,7 +99,9 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
           };
       });
 
-      setQueue(prev => [...prev, ...newFiles]);
+      setQueue(prev => [...prev, ...newItems]);
+      // Reset input so the same files can be selected again if cleared
+      if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const startBatch = () => {
@@ -206,25 +214,25 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
 
           <div className="lg:col-span-3 space-y-6">
               <div className="glass-panel p-8 rounded-3xl min-h-[600px] flex flex-col">
-                  <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                       <div>
                         <h1 className="text-3xl font-display font-bold text-white">Bulk Metadata Engine</h1>
-                        <p className="text-slate-400 text-sm mt-1">Unified API Key powered analysis with image previews.</p>
+                        <p className="text-slate-400 text-sm mt-1">Llama 4 Scout Vision powered analysis with image previews.</p>
                       </div>
-                      <div className="flex gap-3">
+                      <div className="flex gap-3 w-full sm:w-auto">
                           {queue.length > 0 && (
                               <>
                                 <button 
                                     onClick={clearQueue}
                                     disabled={isProcessing}
-                                    className="text-red-400 hover:text-red-300 px-4 py-2 font-bold text-sm disabled:opacity-30"
+                                    className="text-red-400 hover:text-red-300 px-4 py-2 font-bold text-sm disabled:opacity-30 whitespace-nowrap"
                                 >
                                     Clear All
                                 </button>
                                 <button 
                                     onClick={startBatch}
                                     disabled={isProcessing || !queue.some(q => q.status === 'pending')}
-                                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-blue-900/20 flex items-center gap-2"
+                                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-blue-900/20 flex items-center gap-2 flex-grow sm:flex-grow-0 justify-center"
                                 >
                                     {isProcessing ? 'Processing...' : `Start Batch (${queue.filter(q => q.status === 'pending').length})`}
                                 </button>
@@ -269,10 +277,10 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                   )}
 
                   <div className="flex-grow bg-slate-900/50 rounded-2xl border border-white/5 overflow-hidden flex flex-col">
-                      <div className="grid grid-cols-12 gap-4 p-4 border-b border-white/10 bg-slate-900 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      <div className="grid grid-cols-12 gap-4 p-4 border-b border-white/10 bg-slate-900 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                           <div className="col-span-1">Preview</div>
-                          <div className="col-span-5">Filename</div>
-                          <div className="col-span-2">Status</div>
+                          <div className="col-span-4 sm:col-span-5">Filename</div>
+                          <div className="col-span-3 sm:col-span-2">Status</div>
                           <div className="col-span-4 text-right">Action</div>
                       </div>
                       
@@ -293,30 +301,37 @@ const MetadataGenerator: React.FC<MetadataGeneratorProps> = ({ onNav }) => {
                                               </div>
                                           )}
                                       </div>
-                                      <div className="col-span-5 text-slate-200 truncate font-medium" title={item.file.name}>{item.file.name}</div>
-                                      <div className="col-span-2">
+                                      <div className="col-span-4 sm:col-span-5 text-slate-200 truncate font-medium" title={item.file.name}>{item.file.name}</div>
+                                      <div className="col-span-3 sm:col-span-2">
                                           {item.status === 'pending' && <span className="text-slate-500 text-xs">Waiting...</span>}
                                           {item.status === 'processing' && <span className="text-blue-400 text-xs font-bold animate-pulse">Analyzing...</span>}
                                           {item.status === 'completed' && <span className="text-green-400 text-xs font-bold">Done</span>}
-                                          {item.status === 'error' && <span className="text-red-400 text-xs font-bold">Failed</span>}
+                                          {item.status === 'error' && <span className="text-red-400 text-[10px] font-bold leading-tight" title={item.errorMsg}>Failed</span>}
                                       </div>
-                                      <div className="col-span-4 text-right space-x-2">
-                                          {item.status === 'completed' && item.metadata && (
+                                      <div className="col-span-4 text-right space-x-1 sm:space-x-2">
+                                          {item.status === 'completed' && item.metadata ? (
                                               <>
                                                 <button 
                                                   onClick={() => navigator.clipboard.writeText(item.metadata!.title)}
-                                                  className="text-[10px] font-bold text-blue-400 hover:text-white border border-blue-500/30 px-2 py-1 rounded hover:bg-blue-600/20"
+                                                  className="text-[9px] sm:text-[10px] font-bold text-blue-400 hover:text-white border border-blue-500/30 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded hover:bg-blue-600/20"
                                                 >
                                                     Title
                                                 </button>
                                                 <button 
                                                   onClick={() => navigator.clipboard.writeText(item.metadata!.keywords.join(', '))}
-                                                  className="text-[10px] font-bold text-teal-400 hover:text-white border border-teal-500/30 px-2 py-1 rounded hover:bg-teal-600/20"
+                                                  className="text-[9px] sm:text-[10px] font-bold text-teal-400 hover:text-white border border-teal-500/30 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded hover:bg-teal-600/20"
                                                 >
                                                     Tags
                                                 </button>
                                               </>
-                                          )}
+                                          ) : item.status === 'error' ? (
+                                              <button 
+                                                onClick={() => setQueue(prev => prev.map(it => it.id === item.id ? {...it, status: 'pending'} : it))}
+                                                className="text-[9px] sm:text-[10px] font-bold text-orange-400 hover:text-white border border-orange-500/30 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded hover:bg-orange-600/20"
+                                              >
+                                                Retry
+                                              </button>
+                                          ) : null}
                                       </div>
                                   </div>
                               ))
