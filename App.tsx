@@ -106,15 +106,23 @@ const App: React.FC = () => {
       }
   };
 
+  /**
+   * SEQUENTIAL LOADING LOGIC
+   * We fetch sections one after another to prevent browser lag and API rate limiting.
+   */
   const loadAllDashboardData = async () => {
     setLoadingTrends(true);
     setLoadingMonthly(true);
     try {
-        // Sequential Loading to avoid rate limits
+        // 1. Load Daily Trends first
         const daily = await fetchDailyTrends();
         setTrends(daily);
         setLoadingTrends(false);
 
+        // Small delay to let the UI breath
+        await new Promise(r => setTimeout(r, 300));
+
+        // 2. Load Monthly Trends after Daily finishes
         const monthly = await fetchMonthlyTrends();
         setMonthlyTrends(monthly);
         setLoadingMonthly(false);
