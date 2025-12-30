@@ -25,7 +25,6 @@ const cleanJsonString = (str: string) => {
     if (start !== -1 && end !== -1) {
         return str.substring(start, end + 1);
     }
-    // Fallback if it's an array
     const arrayStart = str.indexOf('[');
     const arrayEnd = str.lastIndexOf(']');
     if (arrayStart !== -1 && arrayEnd !== -1) {
@@ -182,43 +181,64 @@ export const compareNiches = async (topicA: string, topicB: string): Promise<Nic
   return JSON.parse(res);
 };
 
+const getPlatformRules = (platform: string) => {
+    if (platform === 'adobestock' || platform === 'freepik') {
+        return "Strictly ONLY provide 'title' and 'keywords'. DO NOT provide a description.";
+    }
+    if (platform === 'shutterstock') {
+        return "Strictly ONLY provide 'description' and 'keywords'. Shutterstock uses description as the primary metadata.";
+    }
+    return "Provide 'title', 'description', and 'keywords'.";
+};
+
 export const generateMetadataFromFilename = async (filename: string, config: MetadataConfig): Promise<GeneratedMetadata | null> => {
-  const prompt = `Generate commercial microstock Title, Description, and Keywords for file: "${filename}". 
-  Constraints:
-  - Title: Max ${config.titleLength} characters.
-  - Description: Max ${config.descLength} characters.
+  const platformRules = getPlatformRules(config.platform);
+  const prompt = `Generate commercial microstock metadata for file: "${filename}". 
+  Platform Focus: ${config.platform}
+  Rules:
+  ${platformRules}
+  - Title/Description: Max ${config.titleLength} characters.
   - Keywords: Exactly ${config.keywordCount} keywords.
-  - Platform Focus: ${config.platform}
   - Image Type: ${config.imageType}
-  ${config.negativeTitle.enabled ? `- DO NOT include these words in Title: ${config.negativeTitle.value}` : ''}
+  ${config.negativeTitle.enabled ? `- DO NOT include these words in Title/Desc: ${config.negativeTitle.value}` : ''}
   ${config.negativeKeywords.enabled ? `- DO NOT include these words in Keywords: ${config.negativeKeywords.value}` : ''}
   
-  Return JSON: {title, description, keywords[]}.`;
+  Return JSON format matching: {"title": "...", "description": "...", "keywords": []}`;
   
   const res = await callGroq([{ role: "user", content: prompt }]);
   let data = JSON.parse(res);
   
-  // Apply manual prefix/suffix if enabled
-  if (config.prefix.enabled && config.prefix.value) data.title = `${config.prefix.value} ${data.title}`;
-  if (config.suffix.enabled && config.suffix.value) data.title = `${data.title} ${config.suffix.value}`;
+  if (config.prefix.enabled && config.prefix.value) {
+      if (data.title) data.title = `${config.prefix.value} ${data.title}`;
+      if (data.description) data.description = `${config.prefix.value} ${data.description}`;
+  }
+  if (config.suffix.enabled && config.suffix.value) {
+      if (data.title) data.title = `${data.title} ${config.suffix.value}`;
+      if (data.description) data.description = `${data.description} ${config.suffix.value}`;
+  }
   
   return data;
 };
 
 export const generateImageMetadata = async (base64Data: string, mimeType: string, config: MetadataConfig): Promise<GeneratedMetadata | null> => {
     const cleanBase64 = base64Data.includes('base64,') ? base64Data : `data:${mimeType};base64,${base64Data}`;
+    const platformRules = getPlatformRules(config.platform);
     
     const messages = [
         {
             role: "user",
             content: [
                 { type: "text", text: `Analyze this image for commercial microstock. 
-                  Output JSON format: {"title": "max ${config.titleLength} chars", "description": "max ${config.descLength} chars", "keywords": []}. 
-                  Keywords count: ${config.keywordCount}.
                   Platform Focus: ${config.platform}
-                  Image Type: ${config.imageType}
-                  ${config.negativeTitle.enabled ? `DO NOT use these words in Title: ${config.negativeTitle.value}` : ''}
-                  ${config.negativeKeywords.enabled ? `DO NOT use these words in Keywords: ${config.negativeKeywords.value}` : ''}` 
+                  Rules:
+                  ${platformRules}
+                  - Title/Description: max ${config.titleLength} chars.
+                  - Keywords count: ${config.keywordCount}.
+                  - Image Type: ${config.imageType}
+                  ${config.negativeTitle.enabled ? `DO NOT use these words in Title/Desc: ${config.negativeTitle.value}` : ''}
+                  ${config.negativeKeywords.enabled ? `DO NOT use these words in Keywords: ${config.negativeKeywords.value}` : ''}
+                  
+                  Output strictly JSON: {"title": "...", "description": "...", "keywords": []}` 
                 },
                 { type: "image_url", image_url: { url: cleanBase64 } }
             ]
@@ -228,9 +248,14 @@ export const generateImageMetadata = async (base64Data: string, mimeType: string
         const res = await callGroq(messages);
         let data = JSON.parse(res);
         
-        // Apply manual prefix/suffix if enabled
-        if (config.prefix.enabled && config.prefix.value) data.title = `${config.prefix.value} ${data.title}`;
-        if (config.suffix.enabled && config.suffix.value) data.title = `${data.title} ${config.suffix.value}`;
+        if (config.prefix.enabled && config.prefix.value) {
+            if (data.title) data.title = `${config.prefix.value} ${data.title}`;
+            if (data.description) data.description = `${config.prefix.value} ${data.description}`;
+        }
+        if (config.suffix.enabled && config.suffix.value) {
+            if (data.title) data.title = `${data.title} ${config.suffix.value}`;
+            if (data.description) data.description = `${data.description} ${config.suffix.value}`;
+        }
         
         return data;
     } catch (error) {
